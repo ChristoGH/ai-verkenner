@@ -1,4 +1,38 @@
-.DS_Store
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+build/
+dist/
+
+# ---- Node / Frontend ----
 node_modules/
-*.log
+dist-ssr/
+*.local
+.vite/
+coverage/
+*.tsbuildinfo
+
+# ---- SQLite / data ----
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+
+# ---- Env / secrets ----
 .env
+.env.*
+!.env.example
+
+# ---- OS / editors ----
+.DS_Store
+*.log
+.idea/
+.vscode/

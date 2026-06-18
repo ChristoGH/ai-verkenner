@@ -1,0 +1,32 @@
+# AI Verkenner — docker-compose (PLACEHOLDER)
+#
+# This file intentionally starts NOTHING. Local development in Task 001 runs the
+# backend and frontend directly on the host (see README.md). Container
+# orchestration is deliberately out of scope until a later task explicitly calls
+# for it (see CLAUDE.md — "Do NOT build without a task file").
+#
+# The service definitions below are commented out as a future reference only.
+#
+# version: "3.9"
+#
+# services:
+#   backend:
+#     build: ./backend
+#     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+#     ports:
+#       - "8000:8000"
+#     env_file:
+#       - .env
+#     volumes:
+#       - ./prompts:/app/prompts:ro
+#       - ./sources:/app/sources:ro
+#
+#   frontend:
+#     build: ./frontend
+#     command: npm run dev -- --host
+#     ports:
+#       - "5173:5173"
+#     depends_on:
+#       - backend
+#
+# No volumes, no networks, no database service are defined on purpose.

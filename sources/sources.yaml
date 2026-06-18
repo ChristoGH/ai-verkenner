@@ -1,0 +1,131 @@
+# AI Verkenner — curated source registry
+#
+# A hand-maintained list of trusted sources. Adding a source is a deliberate editorial act.
+# This is a CURATED PIPELINE, not a crawler (see docs/AI_VERKENNER_PROJECT_BRIEF.md §3).
+#
+# Schema per entry:
+#   name:         human-readable label (required)
+#   source_type:  rss | github_releases | arxiv      (required)
+#   url:          canonical URL / feed URL           (required; preserved verbatim)
+#   repo_owner:   GitHub org/user   (github_releases only)
+#   repo_name:    GitHub repo       (github_releases only)
+#   arxiv_query:  arXiv API query   (arxiv only)
+#   enabled:      true | false                        (required)
+#   trust_level:  high | medium | low                 (required)
+#
+# URLs are best-effort real where known; treat any as placeholders to verify in Task 002/003.
+
+sources:
+  # ---- Frontier labs ----
+  - name: OpenAI Blog
+    source_type: rss
+    url: https://openai.com/blog/rss.xml
+    enabled: true
+    trust_level: high
+
+  - name: Anthropic News
+    source_type: rss
+    url: https://www.anthropic.com/news
+    enabled: true
+    trust_level: high
+
+  - name: Google DeepMind Blog
+    source_type: rss
+    url: https://deepmind.google/blog/rss.xml
+    enabled: true
+    trust_level: high
+
+  # ---- Platforms & dev tools ----
+  - name: GitHub Blog
+    source_type: rss
+    url: https://github.blog/feed/
+    enabled: true
+    trust_level: high
+
+  - name: Cursor Changelog
+    source_type: rss
+    url: https://www.cursor.com/changelog/rss.xml
+    enabled: true
+    trust_level: medium
+
+  # ---- AI app frameworks ----
+  - name: LangChain Blog
+    source_type: rss
+    url: https://blog.langchain.dev/rss/
+    enabled: true
+    trust_level: medium
+
+  - name: LlamaIndex Blog
+    source_type: rss
+    url: https://www.llamaindex.ai/blog/feed
+    enabled: true
+    trust_level: medium
+
+  # ---- Data / vector / graph infrastructure ----
+  - name: Qdrant Releases
+    source_type: github_releases
+    url: https://github.com/qdrant/qdrant/releases
+    repo_owner: qdrant
+    repo_name: qdrant
+    enabled: true
+    trust_level: high
+
+  - name: Neo4j Releases
+    source_type: github_releases
+    url: https://github.com/neo4j/neo4j/releases
+    repo_owner: neo4j
+    repo_name: neo4j
+    enabled: true
+    trust_level: medium
+
+  # ---- Research (arXiv) ----
+  - name: arXiv cs.AI (Artificial Intelligence)
+    source_type: arxiv
+    url: https://arxiv.org/list/cs.AI/recent
+    arxiv_query: cat:cs.AI
+    enabled: true
+    trust_level: high
+
+  - name: arXiv cs.CL (Computation and Language)
+    source_type: arxiv
+    url: https://arxiv.org/list/cs.CL/recent
+    arxiv_query: cat:cs.CL
+    enabled: true
+    trust_level: high
+
+  - name: arXiv cs.LG (Machine Learning)
+    source_type: arxiv
+    url: https://arxiv.org/list/cs.LG/recent
+    arxiv_query: cat:cs.LG
+    enabled: true
+    trust_level: high
+
+  # ---- Practitioners / individuals ----
+  - name: Simon Willison's Weblog
+    source_type: rss
+    url: https://simonwillison.net/atom/everything/
+    enabled: true
+    trust_level: high
+
+  - name: Eugene Yan
+    source_type: rss
+    url: https://eugeneyan.com/rss/
+    enabled: true
+    trust_level: high
+
+  # ---- Backend / frontend tooling the stack depends on ----
+  - name: FastAPI Releases
+    source_type: github_releases
+    url: https://github.com/fastapi/fastapi/releases
+    repo_owner: fastapi
+    repo_name: fastapi
+    enabled: true
+    trust_level: high
+
+  - name: Vite Releases
+    source_type: github_releases
+    url: https://github.com/vitejs/vite/releases
+    repo_owner: vitejs
+    repo_name: vite
+    enabled: true
+    trust_level: high
