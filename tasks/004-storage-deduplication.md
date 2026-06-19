@@ -1,6 +1,6 @@
-# Task 004 — Storage & Deduplication
+# Task 004 (M3 — Storage + embeddings + semantic dedup) — Storage & Deduplication
 
-**Status: TODO**
+**Status: M3 — TODO**
 
 ## Goal
 

@@ -1,6 +1,6 @@
-# Task 007 — Feedback Actions
+# Task 007 (M7 — Feedback + GraphRAG digest) — Feedback Actions
 
-**Status: TODO**
+**Status: M7 — TODO**
 
 ## Goal
 

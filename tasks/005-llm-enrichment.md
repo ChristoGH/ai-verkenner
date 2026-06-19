@@ -1,6 +1,6 @@
-# Task 005 — LLM Enrichment
+# Task 005 (M4 — Enrichment + entity/relationship extraction) — LLM Enrichment
 
-**Status: TODO**
+**Status: M4 — TODO**
 
 ## Goal
 

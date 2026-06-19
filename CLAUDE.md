@@ -26,17 +26,31 @@ faster, more accurate, or more useful, it does not belong in the MVP.
 
 - **Backend:** FastAPI · SQLite (later) · httpx · feedparser · python-dotenv ·
   SQLModel/SQLAlchemy (later) · YAML source registry.
+- **Graph / vector / visual (sanctioned by [ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)):**
+  Qdrant (vectors / semantic dedup) · Neo4j (knowledge graph) · Cosmograph (`@cosmograph/react`
+  visualisation). Deployed locally via Docker Compose; arriving by milestone in
+  [`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md) (M2+), not in the M1 ingestion slice.
 - **Frontend:** React · Vite · TypeScript · Tailwind · shadcn/ui · TanStack Query · Zod.
+
+A **read-only, local MCP surface** and the **curated GitHub-intelligence `source_type`s**
+(`github_star_velocity`, `github_new_repos`, `github_advisories`, `github_changes`) are sanctioned
+by [ADR 0002](docs/decisions/0002-mcp-server-and-github-intelligence.md). These stay curated (watched
+list in `sources.yaml` + official GitHub API) — they are **not** a broad crawler.
 
 ## Do NOT build without a task file that explicitly calls for it
 
 The following are deliberately out of scope. Adding any of them without a task file that names
 it is a contract violation:
 
-Postgres · Qdrant (or any vector DB) · Redis · Kubernetes · Docker production setup · auth /
-login · graph database · broad web crawler · browser automation · billing / payments ·
-multi-user · Slack / Teams / email integrations · complex multi-agent systems · plugin
-framework.
+Postgres · Redis · Kubernetes · Docker production setup · auth / login · broad web crawler ·
+browser automation · billing / payments · multi-user · Slack / Teams / email integrations ·
+complex multi-agent systems · plugin framework · read/write (mutating) MCP surface.
+
+> **Sanctioned out of this list by ADRs (do build, by milestone):** Qdrant, Neo4j, and a graph
+> database — moved into the stack by [ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md).
+> A **read-only** local MCP surface and the curated GitHub-intelligence source types — sanctioned
+> by [ADR 0002](docs/decisions/0002-mcp-server-and-github-intelligence.md). Everything else above
+> stays excluded until a task file names it.
 
 ## Invariants
 
@@ -53,6 +67,9 @@ These hold across every feature, now and later:
 - **One source of truth for the priority rule.** The canonical priority-class rule lives in
   [`backend/app/scoring/priority.py`](backend/app/scoring/priority.py). Do **not** re-derive it
   inline anywhere else — import it.
+- **SQLite is the source of truth; Qdrant and Neo4j are rebuildable derived indices.** A re-index
+  job must be able to reconstruct both from SQLite. A vector/graph write failure must never lose
+  the SQLite record (per [ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)).
 
 ## Process
 

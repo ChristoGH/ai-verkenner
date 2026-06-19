@@ -5,13 +5,20 @@
 #
 # Schema per entry:
 #   name:         human-readable label (required)
-#   source_type:  rss | github_releases | arxiv      (required)
+#   source_type:  rss | github_releases | arxiv                                  (required)
+#                 | github_star_velocity | github_new_repos                      (curated GitHub
+#                 | github_advisories | github_changes                           #  intelligence,
+#                                                                                #  ADR 0002 — M3)
 #   url:          canonical URL / feed URL           (required; preserved verbatim)
 #   repo_owner:   GitHub org/user   (github_releases only)
 #   repo_name:    GitHub repo       (github_releases only)
 #   arxiv_query:  arXiv API query   (arxiv only)
 #   enabled:      true | false                        (required)
 #   trust_level:  high | medium | low                 (required)
+#
+# The github_* intelligence types are sanctioned by docs/decisions/0002-... They stay CURATED
+# (watched orgs/users/topics + the official GitHub API), never a broad crawler. Their fetchers
+# land in M3; declared entries below are validated now but kept `enabled: false` until then.
 #
 # URLs are best-effort real where known; treat any as placeholders to verify in Task 002/003.
 
@@ -128,4 +135,34 @@ sources:
     repo_owner: vitejs
     repo_name: vite
     enabled: true
+    trust_level: high
+
+  # ---- Curated GitHub intelligence (ADR 0002) — declared & validated now, active in M3 ----
+  # These stay disabled until their fetchers land; the registry validates them today.
+  - name: New repos under topic:llm
+    source_type: github_new_repos
+    url: https://github.com/topics/llm
+    enabled: false
+    trust_level: medium
+
+  - name: Star velocity under topic:rag
+    source_type: github_star_velocity
+    url: https://github.com/topics/rag
+    enabled: false
+    trust_level: medium
+
+  - name: Advisories — qdrant/qdrant (own stack)
+    source_type: github_advisories
+    url: https://github.com/qdrant/qdrant/security/advisories
+    repo_owner: qdrant
+    repo_name: qdrant
+    enabled: false
+    trust_level: high
+
+  - name: Breaking changes — fastapi/fastapi
+    source_type: github_changes
+    url: https://github.com/fastapi/fastapi/issues
+    repo_owner: fastapi
+    repo_name: fastapi
+    enabled: false
     trust_level: high

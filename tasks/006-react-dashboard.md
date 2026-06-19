@@ -1,6 +1,6 @@
-# Task 006 — React Dashboard (Core Radar)
+# Task 006 (M6 — Dashboard + Cosmograph) — React Dashboard (Core Radar)
 
-**Status: TODO**
+**Status: M6 — TODO**
 
 ## Goal
 

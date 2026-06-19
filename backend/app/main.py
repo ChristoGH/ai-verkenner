@@ -1,13 +1,14 @@
 """AI Verkenner API — application entry point.
 
-Task 001 scope: a runnable FastAPI app that serves a health check and registers placeholder
-routers. No ingestion, no enrichment, no database yet.
+Serves the health check and the curated source registry (`GET /sources`, milestone M1). Ingestion
+runs as a job, not an endpoint, at this milestone; database, enrichment, and the graph/vector
+stores arrive in later milestones.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health
+from app.api import health, sources
 from app.core.config import settings
 
 app = FastAPI(title="AI Verkenner API", version=settings.app_version)
@@ -20,5 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check (implemented). Other resource routers arrive in later tasks.
+# Health check + curated source registry. Other resource routers arrive in later milestones.
 app.include_router(health.router)
+app.include_router(sources.router)

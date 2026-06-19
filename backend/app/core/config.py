@@ -39,6 +39,16 @@ class Settings:
         self.prompts_dir: Path = _resolve(os.getenv("PROMPTS_DIR", "prompts"))
         self.sources_file: Path = _resolve(os.getenv("SOURCES_FILE", "sources/sources.yaml"))
 
+        # Ingestion HTTP behaviour. Polite user agent + a real timeout so one slow source
+        # can't hang a run (the per-source fail-safe invariant).
+        self.http_timeout: float = float(os.getenv("HTTP_TIMEOUT", "10"))
+        self.user_agent: str = os.getenv(
+            "USER_AGENT",
+            "AI-Verkenner/0.1 (+https://github.com/ChristoGH/ai-verkenner; personal intelligence tool)",
+        )
+        # arXiv API max results per query (bounded so a query can't pull an unbounded page).
+        self.arxiv_max_results: int = int(os.getenv("ARXIV_MAX_RESULTS", "25"))
+
         # Placeholder — SQLite arrives in Task 004.
         self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/ai_verkenner.db")
 

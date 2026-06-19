@@ -1,5 +1,9 @@
-"""Ingestion (PLACEHOLDER).
+"""Ingestion: fetch the curated registry into in-memory RawItems, fail-safe per source."""
 
-Task 003 adds fetchers for RSS/Atom (feedparser), GitHub releases and arXiv (httpx), with
-per-source failure isolation. Source URLs are always preserved. Nothing is fetched yet.
-"""
+from app.ingestion.orchestrator import (
+    IngestionRun,
+    SourceRunResult,
+    run_ingestion,
+)
+
+__all__ = ["run_ingestion", "IngestionRun", "SourceRunResult"]

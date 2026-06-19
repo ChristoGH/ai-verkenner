@@ -36,3 +36,7 @@ data/*.db
 *.log
 .idea/
 .vscode/
+
+# ---- Editor / tool state ----
+.cursor/
+.claude/

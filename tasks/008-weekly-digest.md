@@ -1,6 +1,6 @@
-# Task 008 — Weekly Digest
+# Task 008 (M7 — Feedback + GraphRAG digest) — Weekly Digest
 
-**Status: TODO**
+**Status: M7 — TODO**
 
 ## Goal
 

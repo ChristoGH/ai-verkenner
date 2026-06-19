@@ -1,6 +1,6 @@
-# Task 003 — RSS / GitHub / arXiv Ingestion
+# Task 003 (M1 — Source registry + ingestion) — RSS / GitHub / arXiv Ingestion
 
-**Status: TODO**
+**Status: M1 — IN PROGRESS** (implemented in `feat/m1-source-ingestion`; awaiting review gate)
 
 ## Goal
 

@@ -1,6 +1,6 @@
-# Task 001 — Repo Scaffold
+# Task 001 (M0 — Scaffold) — Repo Scaffold
 
-**Status: DONE** ✅
+**Status: DONE (M0)** ✅
 
 ## Goal
 

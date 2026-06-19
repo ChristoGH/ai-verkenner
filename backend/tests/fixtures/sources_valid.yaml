@@ -1,0 +1,28 @@
+# Valid fixture registry for source-registry tests.
+sources:
+  - name: Example RSS
+    source_type: rss
+    url: https://example.com/feed.xml
+    enabled: true
+    trust_level: high
+
+  - name: Example Releases
+    source_type: github_releases
+    url: https://github.com/example/repo/releases
+    repo_owner: example
+    repo_name: repo
+    enabled: false
+    trust_level: medium
+
+  - name: Example arXiv
+    source_type: arxiv
+    url: https://arxiv.org/list/cs.AI/recent
+    arxiv_query: cat:cs.AI
+    enabled: true
+    trust_level: high
+
+  - name: Example new repos (GitHub intelligence)
+    source_type: github_new_repos
+    url: https://github.com/topics/llm
+    enabled: false
+    trust_level: medium

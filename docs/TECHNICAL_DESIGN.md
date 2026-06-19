@@ -81,13 +81,36 @@ a deliberate decision (it resolves an earlier ambiguity):
   This means the backend has no embedded assumption about the directory layout — change the env
   var and the content can live anywhere, including a mounted volume in a future container setup.
 
-## Later architecture (directional, not committed)
+## Phase 1 architecture (committed — graph / vector / visual)
 
-As the system grows beyond a single user or a single machine — **only when a task file calls for
-it** — likely evolutions include: moving from SQLite to Postgres; introducing a vector store for
-semantic dedup and similarity; a proper job scheduler/queue; and packaging via the (currently
-inert) `docker-compose.yml`. None of this is built now; each is gated behind the exclusions in
-`CLAUDE.md` and would be recorded as an ADR before adoption.
+[ADR 0001](decisions/0001-graph-vector-visual-stack.md) promotes the graph/vector/visual stack
+from "directional" to **committed Phase-1 architecture**, operationalised by the milestone ladder
+in [`PHASE_1_PLAN.md`](PHASE_1_PLAN.md). The MVP system above is the M0–M1 footprint; from **M2**
+onward it grows three locally-run stores around the same core loop:
+
+- **Qdrant** (vectors) — item-summary embeddings (local `sentence-transformers`) for two-stage
+  semantic dedup / event clustering, GraphRAG retrieval, and the Cosmograph embedding projection.
+- **Neo4j** (knowledge graph) — `Item`/`Source`/`Entity`/`Event`/`Topic` nodes with timestamped
+  edges; the substrate for convergence / weak-signal detection and graph-expansion retrieval.
+- **Cosmograph** (`@cosmograph/react`) — GPU/WebGL visualisation of the graph and embedding space,
+  with Timeline / Search, fed by a backend `/graph` endpoint.
+
+Inference is **hybrid**: a cloud LLM for enrichment and entity/relationship extraction, local
+`sentence-transformers` for embeddings. All services run locally via the
+`docker-compose.yml` (`qdrant`, `neo4j`, `backend`, `frontend`). The curated GitHub-intelligence
+source types and a **read-only** local MCP surface are sanctioned by
+[ADR 0002](decisions/0002-mcp-server-and-github-intelligence.md).
+
+**Where it lands in the build:** M2 stands up the infra; M3 adds storage + embeddings + dedup;
+M4 enrichment + extraction; M5 graph write + graph-aware ranking; M6 the Cosmograph dashboard;
+M7 GraphRAG digest; M7.5/M8.5 the post generator and read-only MCP server. None of this is in the
+**M1** ingestion slice (no Qdrant/Neo4j/LLM/DB yet).
+
+## Still deferred (directional, not committed)
+
+Gated behind the remaining `CLAUDE.md` exclusions until a task file names them: moving from SQLite
+to Postgres; a proper job scheduler/queue; multi-user / auth; alerting; a read/write MCP surface.
+Each would be recorded as an ADR before adoption.
 
 ## Cross-cutting invariants (enforced in design)
 
@@ -100,3 +123,6 @@ inert) `docker-compose.yml`. None of this is built now; each is gated behind the
   demotion, never an additive term. See the brief's canonical scoring section.
 - **One priority rule.** `scoring/priority.py` is the single source of truth; enrichment imports
   it rather than re-implementing it.
+- **SQLite is the source of truth; Qdrant and Neo4j are rebuildable derived indices.** A re-index
+  job reconstructs both from SQLite; a vector/graph write failure must never lose the SQLite
+  record (per [ADR 0001](decisions/0001-graph-vector-visual-stack.md)).

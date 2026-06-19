@@ -1,6 +1,6 @@
-# Task 002 — Source Registry
+# Task 002 (M1 — Source registry + ingestion) — Source Registry
 
-**Status: TODO**
+**Status: M1 — IN PROGRESS** (implemented in `feat/m1-source-ingestion`; awaiting review gate)
 
 ## Goal
 
