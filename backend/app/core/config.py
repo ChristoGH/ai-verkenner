@@ -52,5 +52,14 @@ class Settings:
         # Placeholder — SQLite arrives in Task 004.
         self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/ai_verkenner.db")
 
+        # Derived stores (ADR 0001), brought up via docker compose at M2. Defaults point at the
+        # locally-mapped container ports so a host-run backend reaches `docker compose up`.
+        self.qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+        self.neo4j_uri: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        self.neo4j_user: str = os.getenv("NEO4J_USER", "neo4j")
+        self.neo4j_password: str = os.getenv("NEO4J_PASSWORD", "verkenner_dev_pw")
+        # Keep health pings snappy when a store is down (seconds).
+        self.store_ping_timeout: float = float(os.getenv("STORE_PING_TIMEOUT", "2"))
+
 
 settings = Settings()

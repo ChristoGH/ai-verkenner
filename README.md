@@ -1,6 +1,6 @@
 # AI Verkenner
 
-**AI Verkenner** ("AI Scout") is a personal AI intelligence and early-warning system. It
+**AI Verkenner** is a personal AI intelligence and early-warning system. It
 watches a curated set of trusted sources, enriches what it finds, and surfaces a short,
 ranked, decision-oriented view of what actually matters — so you can answer, at a glance:
 
@@ -21,11 +21,14 @@ quantity of noise.
 
 ## Status
 
-This repository is at the **scaffold milestone (Task 001)**. The backend serves a health
-check, the frontend renders a shell that polls it, and the full project documentation, task
-plan, prompt templates, and curated source registry are in place. There is **no ingestion, no
-LLM enrichment, and no real database yet** — those arrive in later tasks (see
-[`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)).
+This repository is at milestone **M2 — Infra up** on the Phase 1 ladder
+([`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md)). Done so far: the backend serves health/readiness
+checks and the curated source registry (`GET /sources`), fail-safe-per-source ingestion produces
+in-memory `RawItem`s (M1), and `docker compose` brings up the two derived stores —
+**Qdrant** (vectors) and **Neo4j** (graph) — with the backend reporting their reachability. There
+is still **no persistence, no embeddings, no LLM enrichment, and no graph writes** — those arrive
+in M3+. SQLite remains the source of truth; Qdrant and Neo4j are rebuildable derived indices
+([ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)).
 
 ## Repository layout
 
@@ -49,6 +52,32 @@ resolves them through configurable paths (`PROMPTS_DIR`, `SOURCES_FILE`) — see
 
 - Python 3.11+
 - Node.js 18+
+- Docker + Docker Compose (for the full stack / the derived stores)
+
+### Full stack (Docker Compose)
+
+One command brings up Qdrant, Neo4j, the backend, and the frontend:
+
+```bash
+cp .env.example .env        # adjust NEO4J_PASSWORD etc. for anything non-local
+docker compose up --build
+```
+
+- Backend: <http://localhost:8000> · health: <http://localhost:8000/health>
+- Frontend: <http://localhost:5173>
+- Qdrant: <http://localhost:6333> · Neo4j browser: <http://localhost:7474> (Bolt on 7687)
+
+Just the stores (e.g. to run the backend on the host): `docker compose up qdrant neo4j`.
+Tear down with `docker compose down` (add `-v` to also drop the data volumes — they are rebuildable
+derived indices, so this is safe).
+
+**RAM minimums (rough):** Neo4j ~1.5 GB (with the heap/pagecache caps in `docker-compose.yml`),
+Qdrant ~0.3 GB, backend ~0.2 GB, frontend ~0.3 GB — budget **~3 GB** free for the full stack, or
+**~2 GB** for just the two stores.
+
+The backend **degrades, never crashes**: if a store is down, `GET /health` still returns `200`
+with that store marked `unreachable` under `dependencies`; `GET /health/ready` returns `503` until
+every required store is reachable.
 
 ### Backend
 

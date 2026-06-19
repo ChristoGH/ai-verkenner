@@ -36,6 +36,20 @@ export function HealthBadge() {
   }
 
   if (data?.status === "ok") {
+    // Surface any derived store that is reachable-down (M2). The backend itself is still OK.
+    const downStores = Object.entries(data.dependencies ?? {})
+      .filter(([, status]) => status !== "ok")
+      .map(([name]) => name);
+
+    if (downStores.length > 0) {
+      return (
+        <Badge variant="warning">
+          <AlertTriangle className="mr-1 h-3 w-3" />
+          Backend OK · {downStores.join(", ")} unreachable
+        </Badge>
+      );
+    }
+
     return (
       <Badge variant="success">
         <Activity className="mr-1 h-3 w-3" />

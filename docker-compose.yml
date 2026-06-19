@@ -1,32 +1,95 @@
-# AI Verkenner — docker-compose (PLACEHOLDER)
+# AI Verkenner — local development stack (milestone M2).
 #
-# This file intentionally starts NOTHING. Local development in Task 001 runs the
-# backend and frontend directly on the host (see README.md). Container
-# orchestration is deliberately out of scope until a later task explicitly calls
-# for it (see CLAUDE.md — "Do NOT build without a task file").
+# Brings up the four Phase-1 services on one machine (sanctioned by ADR 0001):
+#   qdrant   — vector store (derived index)
+#   neo4j    — knowledge graph (derived index)
+#   backend  — FastAPI API
+#   frontend — React/Vite dev server
 #
-# The service definitions below are commented out as a future reference only.
+# SQLite remains the source of truth (CLAUDE.md); qdrant + neo4j are rebuildable derived indices,
+# so their named volumes are disposable. One-command bring-up:  docker compose up --build
 #
-# version: "3.9"
-#
-# services:
-#   backend:
-#     build: ./backend
-#     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-#     ports:
-#       - "8000:8000"
-#     env_file:
-#       - .env
-#     volumes:
-#       - ./prompts:/app/prompts:ro
-#       - ./sources:/app/sources:ro
-#
-#   frontend:
-#     build: ./frontend
-#     command: npm run dev -- --host
-#     ports:
-#       - "5173:5173"
-#     depends_on:
-#       - backend
-#
-# No volumes, no networks, no database service are defined on purpose.
+# RAM minimums (rough): qdrant ~0.3 GB, neo4j ~1.5 GB (with the heap/pagecache caps below),
+# backend ~0.2 GB, frontend ~0.3 GB. Budget ~3 GB free for the full stack; ~2 GB for just the
+# stores (docker compose up qdrant neo4j).
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # REST / HTTP
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  neo4j:
+    image: neo4j:5
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # HTTP browser
+      - "7687:7687"   # Bolt
+    environment:
+      # Auth comes from the environment; defaults are dev-only — override in .env.
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-verkenner_dev_pw}"
+      # Keep the footprint modest for a personal machine (see RAM note above).
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "512m"
+      NEO4J_server_memory_pagecache_size: "512m"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test:
+        ["CMD-SHELL",
+         "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-verkenner_dev_pw} 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Reach the stores by their compose service names (degrade gracefully if one is down).
+      QDRANT_URL: "http://qdrant:6333"
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: "${NEO4J_USER:-neo4j}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:-verkenner_dev_pw}"
+      # Root content is mounted under /app in the container; point config at the absolute paths.
+      SOURCES_FILE: "/app/sources/sources.yaml"
+      PROMPTS_DIR: "/app/prompts"
+      FRONTEND_ORIGIN: "http://localhost:5173"
+    volumes:
+      # Live-reload app code + read the curated content from the repo.
+      - ./backend/app:/app/app
+      - ./sources:/app/sources:ro
+      - ./prompts:/app/prompts:ro
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    depends_on:
+      # Start ordering only — the backend boots and degrades even if a store is unready.
+      - qdrant
+      - neo4j
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      # The browser runs on the host, so it reaches the backend on the host-mapped port.
+      VITE_API_BASE_URL: "http://localhost:8000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules   # keep the image's installed deps, don't shadow with the host
+    command: ["npm", "run", "dev", "--", "--host"]
+    depends_on:
+      - backend
+
+volumes:
+  qdrant_data:
+  neo4j_data:
+  neo4j_logs:

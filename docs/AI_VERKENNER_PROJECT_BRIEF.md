@@ -7,7 +7,7 @@ fixed). Architectural decisions that change direction are recorded as ADRs in
 
 ## 1. Purpose
 
-AI Verkenner ("AI Scout") is a **personal AI intelligence and early-warning system**. The field
+AI Verkenner is a **personal AI intelligence and early-warning system**. The field
 moves faster than any one person can read. AI Verkenner watches a curated set of trusted sources
 on your behalf and turns the firehose into a short, ranked, decision-oriented briefing.
 

@@ -51,11 +51,17 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
 ### Components
 
 - **`backend/app/main.py`** — the FastAPI application. Title "AI Verkenner API", version
-  "0.1.0", CORS allowing the local frontend. Currently exposes `GET /health`.
+  "0.1.0", CORS allowing the local frontend, a lifespan that closes the store clients on shutdown.
+  Exposes `GET /health`, `GET /health/ready`, and `GET /sources`.
 - **`backend/app/core/`** — configuration. Reads environment (`python-dotenv`) including
-  `PROMPTS_DIR` and `SOURCES_FILE`, and resolves them relative to the repository root.
-- **`backend/app/api/`** — router stubs; one router per resource as the surface grows.
-- **`backend/app/db/`** — SQLite engine/session (placeholder until Task 004).
+  `PROMPTS_DIR`, `SOURCES_FILE`, and the M2 store settings (`QDRANT_URL`, `NEO4J_URI`,
+  `NEO4J_USER`, `NEO4J_PASSWORD`), resolving content paths relative to the repository root.
+- **`backend/app/api/`** — routers (`health` with liveness + readiness, `sources`); one router per
+  resource as the surface grows.
+- **`backend/app/db/`** — store clients for the derived indices (M2): `qdrant.py` and `neo4j.py`,
+  each a thin lazily-created client plus a `ping()` that returns a `DependencyStatus`
+  (reachable/unreachable) **without raising**. SQLite engine/session is still a placeholder until
+  Task 004 / M3.
 - **`backend/app/models/`** — SQLModel/SQLAlchemy entities (placeholder until Task 004).
 - **`backend/app/ingestion/`** — source fetching, fail-safe per source (Task 003).
 - **`backend/app/enrichment/`** — LLM enrichment; imports `scoring/priority.py` (Task 005).
@@ -105,6 +111,14 @@ source types and a **read-only** local MCP surface are sanctioned by
 M4 enrichment + extraction; M5 graph write + graph-aware ranking; M6 the Cosmograph dashboard;
 M7 GraphRAG digest; M7.5/M8.5 the post generator and read-only MCP server. None of this is in the
 **M1** ingestion slice (no Qdrant/Neo4j/LLM/DB yet).
+
+**M2 connectivity & degrade model (current).** `docker compose up` runs `qdrant`, `neo4j`,
+`backend`, and `frontend`; named volumes hold the store data and are disposable (rebuildable from
+SQLite). The backend connects lazily through `app/db/qdrant.py` and `app/db/neo4j.py`. `GET /health`
+is **liveness** — always `200` while the process runs — and additionally reports each store as
+`ok` / `unreachable` under `dependencies`; a store outage degrades the report but never 5xx's the
+endpoint. `GET /health/ready` is **readiness** — `503` until every required store is reachable. No
+schemas, collections, or writes exist yet (M3+).
 
 ## Still deferred (directional, not committed)
 

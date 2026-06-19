@@ -1,17 +1,31 @@
 """AI Verkenner API — application entry point.
 
-Serves the health check and the curated source registry (`GET /sources`, milestone M1). Ingestion
-runs as a job, not an endpoint, at this milestone; database, enrichment, and the graph/vector
-stores arrive in later milestones.
+Serves the health/readiness checks and the curated source registry (`GET /sources`). At milestone
+M2 the backend also carries thin clients for the derived stores (Qdrant, Neo4j) and reports their
+reachability via /health; persistence, enrichment, and graph writes arrive in later milestones.
+
+The app boots even when the stores are down — connectivity is checked lazily, never at import.
 """
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import health, sources
 from app.core.config import settings
+from app.db import neo4j, qdrant
 
-app = FastAPI(title="AI Verkenner API", version=settings.app_version)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Nothing to open eagerly (clients connect lazily). On shutdown, release them cleanly.
+    yield
+    qdrant.close()
+    neo4j.close()
+
+
+app = FastAPI(title="AI Verkenner API", version=settings.app_version, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +35,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check + curated source registry. Other resource routers arrive in later milestones.
+# Health/readiness + curated source registry. Other resource routers arrive in later milestones.
 app.include_router(health.router)
 app.include_router(sources.router)
