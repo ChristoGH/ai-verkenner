@@ -1,11 +1,18 @@
 # Task 004 (M3 — Storage + embeddings + semantic dedup) — Storage & Deduplication
 
-**Status: M3 — TODO**
+**Status: M3 — IN REVIEW** (implemented on `feat/m3-storage-dedup`; awaiting review gate)
+
+> **Scope note (ADR 0001 / PHASE_1_PLAN §5 supersede the original body below).** This task's
+> original draft predates the graph/vector adoption and said "no vector store". M3 now *adds*
+> Qdrant embeddings + two-stage semantic dedup → `Event`s on top of the SQLite persistence. SQLite
+> remains the source of truth; Qdrant is a rebuildable derived index. See the milestone detail in
+> [`docs/PHASE_1_PLAN.md`](../docs/PHASE_1_PLAN.md) (M3).
 
 ## Goal
 
-Introduce SQLite persistence (SQLModel/SQLAlchemy) for `Source` and `RawItem`, and deduplicate
-raw items so repeated runs don't create duplicates.
+Persist ingested items to SQLite (SQLModel/SQLAlchemy) for `Source`, `RawItem`, and `Event`; embed
+new items with a local model into the Qdrant `items` collection; and de-duplicate near-identical
+coverage into `Event`s. Repeated runs are idempotent (no duplicate rows, stable Event assignment).
 
 ## Scope
 
@@ -18,10 +25,12 @@ raw items so repeated runs don't create duplicates.
 
 ## Non-goals
 
-- No enrichment/scoring (Task 005).
+- No enrichment/scoring (Task 005 / M4); `priority.py` stays untouched and unimported here.
+- No entity/relationship extraction, no Neo4j writes (M4/M5), no Cosmograph (M6).
+- No real `github_*` intelligence fetchers (they stay M1 stubs — a separate slice).
 - No migrations framework beyond what SQLite needs for the MVP (keep it simple; document the
   schema).
-- No Postgres, no vector store.
+- No Postgres. (Qdrant *is* in scope at M3, per ADR 0001 — superseding the original draft.)
 
 ## Acceptance criteria
 

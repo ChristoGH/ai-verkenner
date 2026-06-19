@@ -58,11 +58,19 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   `NEO4J_USER`, `NEO4J_PASSWORD`), resolving content paths relative to the repository root.
 - **`backend/app/api/`** — routers (`health` with liveness + readiness, `sources`); one router per
   resource as the surface grows.
-- **`backend/app/db/`** — store clients for the derived indices (M2): `qdrant.py` and `neo4j.py`,
-  each a thin lazily-created client plus a `ping()` that returns a `DependencyStatus`
-  (reachable/unreachable) **without raising**. SQLite engine/session is still a placeholder until
-  Task 004 / M3.
-- **`backend/app/models/`** — SQLModel/SQLAlchemy entities (placeholder until Task 004).
+- **`backend/app/db/`** — store access. `qdrant.py` and `neo4j.py` are thin lazily-created clients
+  with a `ping()` returning a `DependencyStatus` **without raising** (M2). `sqlite.py` builds the
+  SQLModel engine/session (M3). `qdrant_index.py` wraps the `items` collection (ensure / upsert /
+  ANN search / recreate); unlike `ping`, it raises so the persistence path can catch + degrade.
+- **`backend/app/models/`** — SQLModel tables: `Source`, `RawItem`, `Event` (M3 — the SQLite system
+  of record). Each `RawItem` keeps its source URL verbatim, an identity `dedup_key` (UNIQUE →
+  idempotency) and a `content_hash` (stage-(a) dedup), and a nullable `event_id`.
+- **`backend/app/embeddings/`** — an injectable `Embedder` interface (M3): a deterministic
+  `HashingEmbedder` (no model download — used by tests and as fallback) and a lazily-imported local
+  `SentenceTransformerEmbedder`.
+- **`backend/app/storage/`** — the M3 store path: `hashing` (the two hashes), `repository`
+  (upsert sources, idempotent item persistence), `dedup` (two-stage dedup → `Event`s, and
+  `reindex`), and `pipeline` (`ingest_and_store`). Driven by `app/cli.py` (`run` / `reindex`).
 - **`backend/app/ingestion/`** — source fetching, fail-safe per source (Task 003).
 - **`backend/app/enrichment/`** — LLM enrichment; imports `scoring/priority.py` (Task 005).
 - **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, already real and
@@ -119,6 +127,19 @@ is **liveness** — always `200` while the process runs — and additionally rep
 `ok` / `unreachable` under `dependencies`; a store outage degrades the report but never 5xx's the
 endpoint. `GET /health/ready` is **readiness** — `503` until every required store is reachable. No
 schemas, collections, or writes exist yet (M3+).
+
+**M3 storage, embeddings & dedup (current).** The run path (`app/storage/pipeline.py`, exposed as
+`python -m app.cli run`) is: ingest (M1, fail-safe per source) → **upsert Sources + persist new
+RawItems to SQLite first** → embed each new item with the local model and **two-stage dedup** into
+`Event`s — (a) exact content hash, then (b) Qdrant ANN cosine ≥ `DEDUP_TAU` — writing vectors to the
+Qdrant `items` collection with payload `{item_id, source, published_at}`. The ordering encodes the
+ADR-0001 invariant: **a Qdrant failure can only cost the derived index, never a record** — on a
+vector write failure the item stays in SQLite, `embedded=False`, and dedup falls back to hash-only.
+Re-runs are idempotent (the `dedup_key` UNIQUE constraint blocks duplicate rows; existing Event
+assignments don't move). `python -m app.cli reindex` rebuilds the Qdrant collection purely from
+SQLite, demonstrating the derived-index is disposable. Embeddings are **local** (sentence-
+transformers; tests use a deterministic hashing embedder). No enrichment/scoring, entity extraction,
+or Neo4j writes yet (M4/M5).
 
 ## Still deferred (directional, not committed)
 

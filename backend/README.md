@@ -1,12 +1,13 @@
 # AI Verkenner — Backend
 
-FastAPI backend for AI Verkenner. At milestone **M2** it serves health/readiness checks (with
-per-store reachability), exposes the curated source registry (`GET /sources`, M1), runs
-fail-safe-per-source ingestion of RSS / GitHub-releases / arXiv into in-memory `RawItem`s (M1), and
-carries thin clients for the two derived stores — **Qdrant** and **Neo4j** — brought up via
-`docker compose`. The canonical scoring rule (`app/scoring/priority.py`) is real and tested.
-Persistence, embeddings, enrichment, and graph writes arrive in M3+. SQLite is the source of truth;
-Qdrant and Neo4j are rebuildable derived indices (ADR 0001).
+FastAPI backend for AI Verkenner. At milestone **M3** it serves health/readiness checks, the
+curated source registry (`GET /sources`, M1), fail-safe-per-source ingestion of RSS /
+GitHub-releases / arXiv (M1), and — new in M3 — **persists items to SQLite** (the system of record),
+**embeds** them with a local model into the **Qdrant `items`** collection, and **de-duplicates**
+near-identical coverage into `Event`s. The canonical scoring rule (`app/scoring/priority.py`) is
+real and tested (untouched here). Enrichment and graph writes arrive in M4/M5. SQLite is the source
+of truth; Qdrant is a rebuildable derived index (ADR 0001) — a Qdrant write failure never loses a
+SQLite record, and dedup degrades to hash-only when Qdrant is down.
 
 ## Requirements
 
@@ -18,6 +19,8 @@ Qdrant and Neo4j are rebuildable derived indices (ADR 0001).
 cd backend
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[test]"
+# For real local embeddings (downloads a model; otherwise set EMBEDDER=hashing):
+pip install -e ".[embeddings]"
 ```
 
 ## Run
@@ -43,31 +46,49 @@ The source registry is read from `SOURCES_FILE` (default `sources/sources.yaml`,
 repo root). A malformed entry is reported (logged) and skipped — it never crashes a request or a
 run. Ingestion (`app.ingestion.run_ingestion`) is a library call, not yet an endpoint.
 
+### Store path CLI (M3)
+
+```bash
+# Ingest enabled sources → SQLite + Qdrant, dedup near-dups into Events:
+python -m app.cli run
+# Rebuild the Qdrant 'items' collection purely from SQLite (proves the derived-index invariant):
+python -m app.cli reindex
+```
+
+Both honour `DATABASE_URL`, `QDRANT_URL`, and the embedder selector (`EMBEDDER` /
+`EMBEDDING_MODEL`). Dedup uses a two-stage strategy — exact **content hash** then **Qdrant ANN
+cosine ≥ `DEDUP_TAU`** (default `0.92`) — and is idempotent: re-runs add no duplicate rows and keep
+Event assignment stable.
+
 ## Test
 
 ```bash
 pytest
 ```
 
-`test_priority.py` covers the priority regression `(5,0) → immediate_priority`. `test_health.py`
-covers the M2 health/readiness contract (200-when-up, 200-but-degraded-when-down, `/ready` 503) and
-`test_db_clients.py` proves each store `ping()` reports reachability without raising — all with the
-clients patched, so **no live containers are needed**. `test_sources_registry.py` /
-`test_sources_api.py` / `test_ingestion.py` cover the M1 registry and ingestion.
+All tests are **offline and deterministic**: in-memory SQLite, in-process Qdrant (`:memory:`), and a
+`HashingEmbedder` — **no model download, no live containers**. `test_priority.py` covers the
+priority regression. `test_health.py` / `test_db_clients.py` cover the M2 health/readiness contract.
+`test_sources_*` / `test_ingestion.py` cover M1. New in M3: `test_hashing.py` (dedup-hash stability),
+`test_storage_repository.py` (idempotent persistence), `test_storage_dedup.py` (ANN grouping with no
+false-merge, hash-only degrade, Qdrant-write-failure survival, reindex), `test_storage_pipeline.py`
+(end-to-end run path).
 
 ## Layout
 
 ```
 app/
 ├── main.py        FastAPI app + CORS + lifespan (closes store clients on shutdown)
-├── core/          config (PROMPTS_DIR, SOURCES_FILE, HTTP, QDRANT_URL/NEO4J_* store settings)
+├── cli.py         M3 store path — `python -m app.cli run | reindex`
+├── core/          config (paths, HTTP, store URLs, EMBEDDER/EMBEDDING_MODEL/DEDUP_TAU)
 ├── api/           routers (health + /health/ready, sources)
-├── schemas/       Pydantic shapes — Source, SourceType, TrustLevel, RawItem (M1)
+├── schemas/       Pydantic ingestion shapes — Source, SourceType, TrustLevel, RawItem (M1)
 ├── sources/       registry loader (validate sources.yaml, fail-safe)
-├── ingestion/     orchestrator + fetchers/ (rss, github_releases, arxiv; github_* stubs → M3)
-├── db/            store clients — qdrant.py, neo4j.py (ping = degrade-don't-crash); DependencyStatus
-│                  (SQLite/SQLModel persistence still a placeholder — Task 004 / M3)
-├── models/        SQLModel persistence entities (placeholder — Task 004 / M3)
+├── ingestion/     orchestrator + fetchers/ (rss, github_releases, arxiv; github_* stubs)
+├── embeddings/    Embedder interface · HashingEmbedder (deterministic) · sentence-transformers
+├── db/            store clients — qdrant.py, neo4j.py (ping), sqlite.py (engine), qdrant_index.py
+├── models/        SQLModel tables — Source, RawItem, Event (the SQLite system of record)
+├── storage/       hashing · repository (persist) · dedup (events + reindex) · pipeline (run path)
 ├── enrichment/    LLM enrichment (placeholder — Task 005 / M4; imports scoring/priority.py)
 ├── scoring/       priority.py (canonical, tested) + scales constants
 └── digests/       digest generation (placeholder — Task 008 / M7)

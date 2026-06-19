@@ -49,7 +49,7 @@ class Settings:
         # arXiv API max results per query (bounded so a query can't pull an unbounded page).
         self.arxiv_max_results: int = int(os.getenv("ARXIV_MAX_RESULTS", "25"))
 
-        # Placeholder — SQLite arrives in Task 004.
+        # SQLite is the system of record (ADR 0001). Arrived at M3.
         self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/ai_verkenner.db")
 
         # Derived stores (ADR 0001), brought up via docker compose at M2. Defaults point at the
@@ -60,6 +60,15 @@ class Settings:
         self.neo4j_password: str = os.getenv("NEO4J_PASSWORD", "verkenner_dev_pw")
         # Keep health pings snappy when a store is down (seconds).
         self.store_ping_timeout: float = float(os.getenv("STORE_PING_TIMEOUT", "2"))
+
+        # Embeddings + semantic dedup (M3). The local model is loaded lazily and only used by the
+        # SentenceTransformerEmbedder; tests/CI use the deterministic HashingEmbedder instead.
+        self.embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+        # "sentence-transformers" (real, local model) or "hashing" (deterministic, no download).
+        self.embedder: str = os.getenv("EMBEDDER", "sentence-transformers")
+        self.hashing_embedding_dim: int = int(os.getenv("HASHING_EMBEDDING_DIM", "256"))
+        # Cosine threshold for stage-(b) semantic dedup. Higher = stricter (fewer merges).
+        self.dedup_tau: float = float(os.getenv("DEDUP_TAU", "0.92"))
 
 
 settings = Settings()

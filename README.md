@@ -21,13 +21,14 @@ quantity of noise.
 
 ## Status
 
-This repository is at milestone **M2 — Infra up** on the Phase 1 ladder
-([`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md)). Done so far: the backend serves health/readiness
-checks and the curated source registry (`GET /sources`), fail-safe-per-source ingestion produces
-in-memory `RawItem`s (M1), and `docker compose` brings up the two derived stores —
-**Qdrant** (vectors) and **Neo4j** (graph) — with the backend reporting their reachability. There
-is still **no persistence, no embeddings, no LLM enrichment, and no graph writes** — those arrive
-in M3+. SQLite remains the source of truth; Qdrant and Neo4j are rebuildable derived indices
+This repository is at milestone **M3 — Storage + embeddings + semantic dedup** on the Phase 1
+ladder ([`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md)). Done so far: health/readiness checks and
+the curated source registry (`GET /sources`), fail-safe-per-source ingestion (M1), `docker compose`
+infra for **Qdrant** + **Neo4j** (M2), and — new in M3 — items **persist to SQLite**, get **embedded**
+by a local model into **Qdrant**, and are **de-duplicated** (content hash → ANN cosine) into
+`Event`s, with a `reindex` that rebuilds Qdrant purely from SQLite. There is still **no LLM
+enrichment, no entity extraction, and no graph writes** — those arrive in M4/M5. SQLite is the
+source of truth; Qdrant and Neo4j are rebuildable derived indices
 ([ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)).
 
 ## Repository layout
