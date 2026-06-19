@@ -15,12 +15,23 @@ Schema notes (kept legible and forward-compatible):
 - **Event** — one real-world development covered by N RawItems.
 - `embedded` — True once the item's vector is in Qdrant. A Qdrant write failure leaves it False
   (the SQLite record still persists); `reindex` / a later run can embed it.
+
+M4 adds (enrichment + extraction; SQLite only — Neo4j projection is M5):
+
+- **EnrichedItem** — one per `Event` (enrich once per real-world development, not per duplicate):
+  the five scores (hype inverted), the human-facing fields with **fact separated from
+  interpretation**, and a `priority_class` derived **only** by `app/scoring/priority.py`.
+- **Entity** — a normalised org/model/person/tool/concept; basic Phase-1 resolution is
+  exact + normalised-string match (`normalised_name` + `type` is unique).
+- **Relationship** — a NEON-style **timestamped** triple (subject → predicate → object) tied to
+  the source event/item, ready for M5 to project into Neo4j.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 
@@ -76,4 +87,73 @@ class RawItem(SQLModel, table=True):
 
     event_id: int | None = Field(default=None, foreign_key="event.id", index=True)
     embedded: bool = Field(default=False, index=True)  # vector present in Qdrant?
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class EnrichedItem(SQLModel, table=True):
+    """The LLM (or fallback) enrichment of one Event. One row per Event (unique)."""
+
+    __tablename__ = "enriched_item"
+
+    id: int | None = Field(default=None, primary_key=True)
+    # One enrichment per Event — the UNIQUE constraint makes re-enrichment idempotent.
+    event_id: int = Field(foreign_key="event.id", index=True, unique=True)
+    # The representative RawItem that was enriched (its URL is preserved).
+    raw_item_id: int | None = Field(default=None, foreign_key="raw_item.id", index=True)
+    source_url: str  # preserved verbatim from the representative item
+
+    category: str
+    tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+
+    # The five scores (0–5). hype is INVERTED: 0 = strong signal, 5 = pure noise. Never summed
+    # additively with the other four — see app/scoring/priority.py and the ranking helper.
+    relevance: int
+    novelty: int
+    actionability: int
+    strategic_potential: int
+    hype: int
+
+    # SOURCE FACT — only what the source states.
+    summary: str
+    # INTERPRETATION — the model's reading; kept in separate fields, never presented as fact.
+    why_it_matters: str
+    connection_to_user_work: str
+    recommended_action: str
+
+    # Weak-signal annotation (Horizon Scanner lane).
+    is_weak_signal: bool = Field(default=False)
+    horizon: str | None = None  # "near" | "mid" | "far" when is_weak_signal
+
+    # Derived ONLY by app/scoring/priority.compute_priority_class — never re-derived inline.
+    priority_class: str = Field(index=True)
+    # How this enrichment was produced: "llm" or "fallback" (rule-based degrade).
+    method: str = Field(default="llm")
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class Entity(SQLModel, table=True):
+    """A normalised entity (org/model/person/tool/concept). Phase-1 resolution: exact+normalised."""
+
+    __tablename__ = "entity"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str  # the surface form first seen
+    normalised_name: str = Field(index=True)  # lower/trim/collapse — the resolution key
+    type: str = Field(index=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class Relationship(SQLModel, table=True):
+    """A timestamped relationship triple (NEON-style), tied to its source event/item."""
+
+    __tablename__ = "relationship"
+
+    id: int | None = Field(default=None, primary_key=True)
+    subject_entity_id: int = Field(foreign_key="entity.id", index=True)
+    predicate: str  # the interaction kind, e.g. "released", "integrates_with", "depends_on"
+    object_entity_id: int = Field(foreign_key="entity.id", index=True)
+    # Timestamp of the interaction — defaults to the item's published time when known.
+    ts: datetime | None = Field(default=None, index=True)
+    event_id: int | None = Field(default=None, foreign_key="event.id", index=True)
+    raw_item_id: int | None = Field(default=None, foreign_key="raw_item.id", index=True)
     created_at: datetime = Field(default_factory=_utcnow)

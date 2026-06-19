@@ -1,13 +1,15 @@
 # AI Verkenner — Backend
 
-FastAPI backend for AI Verkenner. At milestone **M3** it serves health/readiness checks, the
-curated source registry (`GET /sources`, M1), fail-safe-per-source ingestion of RSS /
-GitHub-releases / arXiv (M1), and — new in M3 — **persists items to SQLite** (the system of record),
-**embeds** them with a local model into the **Qdrant `items`** collection, and **de-duplicates**
-near-identical coverage into `Event`s. The canonical scoring rule (`app/scoring/priority.py`) is
-real and tested (untouched here). Enrichment and graph writes arrive in M4/M5. SQLite is the source
-of truth; Qdrant is a rebuildable derived index (ADR 0001) — a Qdrant write failure never loses a
-SQLite record, and dedup degrades to hash-only when Qdrant is down.
+FastAPI backend for AI Verkenner. At milestone **M4** it serves health/readiness checks, the
+curated source registry (`GET /sources`, M1), fail-safe-per-source ingestion (M1), SQLite
+persistence + local embeddings + semantic dedup into `Event`s (M3), and — new in M4 — **enriches**
+each new, de-duplicated Event with a cloud LLM (the five scores with hype inverted +
+summary/why/action, fact separated from interpretation) and **extracts entities + timestamped
+relationships** for the graph. The priority class is imported from `app/scoring/priority.py` (never
+re-derived); a ranking helper treats hype as a demotion only. Graph writes go to **SQLite** at M4
+(Neo4j projection is M5). SQLite is the source of truth; Qdrant is a rebuildable derived index
+(ADR 0001). Enrichment is **fail-safe per item**: a missing/failed/garbled LLM call degrades to a
+deterministic rule-based fallback rather than aborting the run.
 
 ## Requirements
 
@@ -21,6 +23,8 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -e ".[test]"
 # For real local embeddings (downloads a model; otherwise set EMBEDDER=hashing):
 pip install -e ".[embeddings]"
+# For the real cloud LLM enrichment (otherwise runs use the rule-based fallback):
+pip install -e ".[llm]"
 ```
 
 ## Run
@@ -46,19 +50,21 @@ The source registry is read from `SOURCES_FILE` (default `sources/sources.yaml`,
 repo root). A malformed entry is reported (logged) and skipped — it never crashes a request or a
 run. Ingestion (`app.ingestion.run_ingestion`) is a library call, not yet an endpoint.
 
-### Store path CLI (M3)
+### Store + enrich CLI
 
 ```bash
-# Ingest enabled sources → SQLite + Qdrant, dedup near-dups into Events:
+# Ingest → SQLite + Qdrant → dedup into Events → enrich the new Events (M4):
 python -m app.cli run
+python -m app.cli run --no-enrich   # skip enrichment (M3 behaviour)
 # Rebuild the Qdrant 'items' collection purely from SQLite (proves the derived-index invariant):
 python -m app.cli reindex
 ```
 
-Both honour `DATABASE_URL`, `QDRANT_URL`, and the embedder selector (`EMBEDDER` /
-`EMBEDDING_MODEL`). Dedup uses a two-stage strategy — exact **content hash** then **Qdrant ANN
-cosine ≥ `DEDUP_TAU`** (default `0.92`) — and is idempotent: re-runs add no duplicate rows and keep
-Event assignment stable.
+`run` honours `DATABASE_URL`, `QDRANT_URL`, the embedder selector (`EMBEDDER` / `EMBEDDING_MODEL`),
+and the LLM provider (`LLM_PROVIDER` / `LLM_MODEL`). Dedup is two-stage — exact **content hash**
+then **Qdrant ANN cosine ≥ `DEDUP_TAU`** (default `0.92`) — and idempotent. Enrichment runs **once
+per new Event** (not per duplicate) and is idempotent too (one `EnrichedItem` per Event); with no
+API key it still enriches via the rule-based fallback.
 
 ## Test
 
@@ -66,30 +72,29 @@ Event assignment stable.
 pytest
 ```
 
-All tests are **offline and deterministic**: in-memory SQLite, in-process Qdrant (`:memory:`), and a
-`HashingEmbedder` — **no model download, no live containers**. `test_priority.py` covers the
-priority regression. `test_health.py` / `test_db_clients.py` cover the M2 health/readiness contract.
-`test_sources_*` / `test_ingestion.py` cover M1. New in M3: `test_hashing.py` (dedup-hash stability),
-`test_storage_repository.py` (idempotent persistence), `test_storage_dedup.py` (ANN grouping with no
-false-merge, hash-only degrade, Qdrant-write-failure survival, reindex), `test_storage_pipeline.py`
-(end-to-end run path).
+All tests are **offline and deterministic**: in-memory SQLite, in-process Qdrant (`:memory:`), a
+`HashingEmbedder`, and a **fake LLM provider** — **no model download, no API key, no live
+containers**. M1/M2/M3 suites as before; new in M4: `test_enrichment.py` (output→`EnrichedItem`
+mapping, priority class from the canonical fn, malformed-output + no-provider fallback, entity
+normalisation/merge, fact-vs-interpretation, idempotency), `test_enrichment_parse.py` (JSON
+repair/validation), `test_ranking.py` (hype demotion, never additive).
 
 ## Layout
 
 ```
 app/
 ├── main.py        FastAPI app + CORS + lifespan (closes store clients on shutdown)
-├── cli.py         M3 store path — `python -m app.cli run | reindex`
-├── core/          config (paths, HTTP, store URLs, EMBEDDER/EMBEDDING_MODEL/DEDUP_TAU)
+├── cli.py         store + enrich path — `python -m app.cli run [--no-enrich] | reindex`
+├── core/          config (paths, HTTP, store URLs, embedder, DEDUP_TAU, LLM_PROVIDER/MODEL, ...)
 ├── api/           routers (health + /health/ready, sources)
-├── schemas/       Pydantic ingestion shapes — Source, SourceType, TrustLevel, RawItem (M1)
+├── schemas/       Pydantic shapes — ingestion (Source, RawItem) + enrichment (scores, entities)
 ├── sources/       registry loader (validate sources.yaml, fail-safe)
 ├── ingestion/     orchestrator + fetchers/ (rss, github_releases, arxiv; github_* stubs)
 ├── embeddings/    Embedder interface · HashingEmbedder (deterministic) · sentence-transformers
+├── enrichment/    provider (LLM, lazy) · prompts · parse · fallback · graph_store · enricher
 ├── db/            store clients — qdrant.py, neo4j.py (ping), sqlite.py (engine), qdrant_index.py
-├── models/        SQLModel tables — Source, RawItem, Event (the SQLite system of record)
+├── models/        SQLModel tables — Source/RawItem/Event (M3) + EnrichedItem/Entity/Relationship (M4)
 ├── storage/       hashing · repository (persist) · dedup (events + reindex) · pipeline (run path)
-├── enrichment/    LLM enrichment (placeholder — Task 005 / M4; imports scoring/priority.py)
-├── scoring/       priority.py (canonical, tested) + scales constants
+├── scoring/       priority.py (canonical, tested) · scales · ranking (hype-aware)
 └── digests/       digest generation (placeholder — Task 008 / M7)
 ```

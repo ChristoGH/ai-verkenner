@@ -62,9 +62,11 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   with a `ping()` returning a `DependencyStatus` **without raising** (M2). `sqlite.py` builds the
   SQLModel engine/session (M3). `qdrant_index.py` wraps the `items` collection (ensure / upsert /
   ANN search / recreate); unlike `ping`, it raises so the persistence path can catch + degrade.
-- **`backend/app/models/`** — SQLModel tables: `Source`, `RawItem`, `Event` (M3 — the SQLite system
-  of record). Each `RawItem` keeps its source URL verbatim, an identity `dedup_key` (UNIQUE →
-  idempotency) and a `content_hash` (stage-(a) dedup), and a nullable `event_id`.
+- **`backend/app/models/`** — SQLModel tables (the SQLite system of record). M3: `Source`,
+  `RawItem` (URL verbatim, identity `dedup_key` UNIQUE → idempotency, `content_hash`, nullable
+  `event_id`), `Event`. M4: `EnrichedItem` (one per Event, UNIQUE; the five scores, fact/
+  interpretation fields, derived `priority_class`), `Entity` (`normalised_name`+`type` resolution
+  key), `Relationship` (timestamped triple).
 - **`backend/app/embeddings/`** — an injectable `Embedder` interface (M3): a deterministic
   `HashingEmbedder` (no model download — used by tests and as fallback) and a lazily-imported local
   `SentenceTransformerEmbedder`.
@@ -72,9 +74,14 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   (upsert sources, idempotent item persistence), `dedup` (two-stage dedup → `Event`s, and
   `reindex`), and `pipeline` (`ingest_and_store`). Driven by `app/cli.py` (`run` / `reindex`).
 - **`backend/app/ingestion/`** — source fetching, fail-safe per source (Task 003).
-- **`backend/app/enrichment/`** — LLM enrichment; imports `scoring/priority.py` (Task 005).
-- **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, already real and
-  tested) and scoring scale constants. Pure logic, no I/O, no pipeline wiring.
+- **`backend/app/enrichment/`** — M4 enrichment + extraction: a provider-abstracted LLM client
+  (`provider`, cloud by default, lazily imported), `prompts` (render the `prompts/` templates),
+  `parse` (JSON repair + validation), `fallback` (deterministic rule-based degrade), `graph_store`
+  (basic entity resolution + relationship persistence), and `enricher` (per-Event orchestration).
+  Imports `scoring/priority.compute_priority_class`; never re-derives the rule.
+- **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, real and tested),
+  scoring scale constants, and `ranking.py` (M4 — hype-aware salience, hype as a demotion only).
+  Pure logic, no I/O.
 - **`backend/app/digests/`** — digest generation (Task 008).
 - **`frontend/`** — the React shell: typed API client + Zod schemas, a polling health badge,
   and pages for Dashboard, Items, Sources, Digests, Settings.
@@ -138,8 +145,23 @@ vector write failure the item stays in SQLite, `embedded=False`, and dedup falls
 Re-runs are idempotent (the `dedup_key` UNIQUE constraint blocks duplicate rows; existing Event
 assignments don't move). `python -m app.cli reindex` rebuilds the Qdrant collection purely from
 SQLite, demonstrating the derived-index is disposable. Embeddings are **local** (sentence-
-transformers; tests use a deterministic hashing embedder). No enrichment/scoring, entity extraction,
-or Neo4j writes yet (M4/M5).
+transformers; tests use a deterministic hashing embedder).
+
+**M4 enrichment & extraction (current).** After dedup, the run path enriches **only the new
+Events** (`enrich_new_events`) — the cloud LLM is called once per real-world development, not per
+duplicate. For each Event's representative item the provider runs the `prompts/` templates
+(`classify_item`, `summarise_item`, `weak_signal`, and the new `extract_graph`) to produce the
+**five scores** (hype inverted), the human-facing fields with **fact (`summary`) separated from
+interpretation** (`why_it_matters` / `connection_to_user_work` / `recommended_action`), and a
+structured **entity + timestamped-relationship** payload. The `priority_class` is computed **only**
+by `compute_priority_class` (imported); a `scoring/ranking.py` helper orders by priority class then
+hype-demoted salience (hype subtracted, never summed). Inference is **hybrid** — cloud LLM for
+enrichment, the M3 local embedder reused. **Fail-safe per item:** a missing/failed/garbled LLM call
+degrades to a deterministic rule-based fallback (`method="fallback"`), so a run never stalls.
+**Idempotent:** one `EnrichedItem` per Event (UNIQUE) means re-runs don't re-enrich or duplicate
+entities/relationships. Entity resolution is Phase-1 **exact + normalised string match** only.
+Entities/relationships are written to **SQLite** here; the **Neo4j** projection and graph-aware
+ranking are M5 (no Neo4j writes yet).
 
 ## Still deferred (directional, not committed)
 

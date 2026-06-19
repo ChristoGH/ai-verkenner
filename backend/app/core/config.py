@@ -70,5 +70,22 @@ class Settings:
         # Cosine threshold for stage-(b) semantic dedup. Higher = stricter (fewer merges).
         self.dedup_tau: float = float(os.getenv("DEDUP_TAU", "0.92"))
 
+        # Enrichment (M4). Cloud LLM by default; "fake"/"none" disable it (tests inject a fake
+        # provider directly). The SDK + key are only needed for the real "anthropic" provider.
+        self.llm_provider: str = os.getenv("LLM_PROVIDER", "anthropic")
+        self.llm_model: str = os.getenv("LLM_MODEL", "claude-opus-4-8")
+        self.llm_api_key: str | None = os.getenv("LLM_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        self.llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "4000"))
+        # Cap entities extracted per item to contain sprawl (ADR/plan M4 risk mitigation).
+        self.max_entities_per_item: int = int(os.getenv("MAX_ENTITIES_PER_ITEM", "12"))
+        # The user's stack/projects/interests — fed to the LLM so relevance is about *this* user.
+        self.user_context: str = os.getenv(
+            "USER_CONTEXT",
+            "A solo engineer building AI Verkenner: a personal AI intelligence and early-warning "
+            "system. Stack: Python, FastAPI, SQLite, Qdrant, Neo4j, React/TypeScript, local "
+            "sentence-transformers embeddings, and a cloud LLM. Interests: LLM tooling, RAG, "
+            "vector/graph databases, agentic systems, and AI developer tooling.",
+        )
+
 
 settings = Settings()

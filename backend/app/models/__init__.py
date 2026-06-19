@@ -1,11 +1,25 @@
-"""SQLModel persistence entities — the SQLite system of record (M3).
+"""SQLModel persistence entities — the SQLite system of record.
 
-SQLite is the source of truth (ADR 0001). Qdrant holds *derived* vectors that are rebuildable
-from these rows; nothing here depends on Qdrant. The M3 schema covers `Source`, `RawItem`, and
-`Event`; `EnrichedItem`, `Entity`, `Relationship`, `Feedback`, and `Digest` follow in later
-milestones.
+SQLite is the source of truth (ADR 0001). Qdrant holds *derived* vectors and Neo4j (M5) a
+*derived* graph; both are rebuildable from these rows. M3 covers `Source`, `RawItem`, `Event`;
+M4 adds `EnrichedItem`, `Entity`, and `Relationship` (graph-ready, but written to SQLite only —
+the Neo4j projection lands in M5). `Feedback` and `Digest` follow later.
 """
 
-from app.models.entities import Event, RawItem, Source
+from app.models.entities import (
+    EnrichedItem,
+    Entity,
+    Event,
+    RawItem,
+    Relationship,
+    Source,
+)
 
-__all__ = ["Source", "RawItem", "Event"]
+__all__ = [
+    "Source",
+    "RawItem",
+    "Event",
+    "EnrichedItem",
+    "Entity",
+    "Relationship",
+]

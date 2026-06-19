@@ -1,12 +1,19 @@
 # Task 005 (M4 — Enrichment + entity/relationship extraction) — LLM Enrichment
 
-**Status: M4 — TODO**
+**Status: M4 — IN REVIEW** (implemented on `feat/m4-enrichment`; awaiting review gate)
+
+> **Scope note (PHASE_1_PLAN §5 / ADR 0001 extend this task).** Beyond the original enrichment,
+> M4 also **extracts entities + timestamped relationships** (NEON-style triples) via a new
+> `prompts/extract_graph.md`, and works at the **Event** level (enrich once per de-duplicated
+> development, not per duplicate). Entities/relationships persist to **SQLite only** — Neo4j
+> projection is M5. Entity resolution stays basic (exact + normalised string match).
 
 ## Goal
 
-Enrich each new `RawItem` into an `EnrichedItem`: classification/tags, the five scores, summary,
-why-it-matters, connection-to-user-work, and a recommended action — and derive the priority
-class **by importing the canonical rule**, never re-implementing it.
+Enrich each new, de-duplicated **Event** into an `EnrichedItem`: classification/tags, the five
+scores (hype inverted), summary, why-it-matters, connection-to-user-work, and a recommended action
+— and derive the priority class **by importing the canonical rule**, never re-implementing it.
+Also extract the Event's entities and timestamped relationships for the graph (M5).
 
 ## Scope
 

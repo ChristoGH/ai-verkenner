@@ -26,6 +26,12 @@ test = [
 embeddings = [
     "sentence-transformers>=2.6",
 ]
+# Cloud LLM provider for enrichment (M4). Optional + lazily imported so tests/CI need no SDK or
+# API key — they use the deterministic FakeProvider. Install for real runs:
+#   pip install -e ".[llm]"
+llm = [
+    "anthropic>=0.40",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

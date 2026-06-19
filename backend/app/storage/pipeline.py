@@ -1,8 +1,10 @@
-"""The M3 run path: ingest → persist (SQLite) → embed + dedup (Qdrant) → Events.
+"""The run path: ingest → persist (SQLite) → embed + dedup (Qdrant) → Events → enrich (M4).
 
 Order matters and encodes the ADR-0001 invariant: **SQLite first**. Sources and RawItems are
 committed to the system of record before any Qdrant call, so a vector-store failure can only cost
-us the derived index (rebuildable via `reindex`), never a record.
+us the derived index (rebuildable via `reindex`), never a record. Enrichment runs **after dedup**
+and only on the new Events, so the cloud LLM is called once per real-world development, not per
+duplicate.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.embeddings import Embedder
+from app.enrichment import Enricher, enrich_new_events
 from app.ingestion import run_ingestion
 from app.ingestion.orchestrator import IngestionRun
 from app.schemas.source import Source
@@ -32,6 +35,7 @@ class StoreRunResult:
     sources_upserted: int
     new_item_count: int
     embedded_count: int
+    enriched_event_count: int = 0
 
     @property
     def fetched_item_count(self) -> int:
@@ -45,11 +49,14 @@ def ingest_and_store(
     embedder: Embedder,
     qdrant_client: QdrantClient | None,
     tau: float | None = None,
+    enricher: Enricher | None = None,
 ) -> StoreRunResult:
-    """Run the full M3 path for the given sources. Fail-safe per source (M1) is preserved.
+    """Run the full path for the given sources. Fail-safe per source (M1) is preserved.
 
     `qdrant_client=None` (or an unreachable Qdrant) degrades dedup to hash-only; items persist to
-    SQLite regardless.
+    SQLite regardless. `enricher=None` skips enrichment (M3 behaviour); pass an `Enricher` to
+    enrich the new Events (M4) — it is itself fail-safe per item (LLM failure → rule-based
+    fallback).
     """
     tau = settings.dedup_tau if tau is None else tau
 
@@ -62,14 +69,20 @@ def ingest_and_store(
     # Then the derived index + Event grouping (degrades if Qdrant is down).
     assign_events(session, new_rows, qdrant_client=qdrant_client, embedder=embedder, tau=tau)
 
+    # Then enrich the new Events (idempotent; only events without an EnrichedItem).
+    enriched_event_count = 0
+    if enricher is not None:
+        enriched_event_count = enrich_new_events(session, enricher, new_rows)
+
     embedded_count = sum(1 for r in new_rows if r.embedded)
     logger.info(
-        "store run: fetched=%d new=%d embedded=%d (tau=%.2f)",
-        len(run.items), len(new_rows), embedded_count, tau,
+        "store run: fetched=%d new=%d embedded=%d enriched_events=%d (tau=%.2f)",
+        len(run.items), len(new_rows), embedded_count, enriched_event_count, tau,
     )
     return StoreRunResult(
         ingestion=run,
         sources_upserted=len(source_ids),
         new_item_count=len(new_rows),
         embedded_count=embedded_count,
+        enriched_event_count=enriched_event_count,
     )
