@@ -1,15 +1,16 @@
 # AI Verkenner — Backend
 
-FastAPI backend for AI Verkenner. At milestone **M4** it serves health/readiness checks, the
-curated source registry (`GET /sources`, M1), fail-safe-per-source ingestion (M1), SQLite
-persistence + local embeddings + semantic dedup into `Event`s (M3), and — new in M4 — **enriches**
-each new, de-duplicated Event with a cloud LLM (the five scores with hype inverted +
-summary/why/action, fact separated from interpretation) and **extracts entities + timestamped
-relationships** for the graph. The priority class is imported from `app/scoring/priority.py` (never
-re-derived); a ranking helper treats hype as a demotion only. Graph writes go to **SQLite** at M4
-(Neo4j projection is M5). SQLite is the source of truth; Qdrant is a rebuildable derived index
-(ADR 0001). Enrichment is **fail-safe per item**: a missing/failed/garbled LLM call degrades to a
-deterministic rule-based fallback rather than aborting the run.
+FastAPI backend for AI Verkenner. At milestone **M5** it serves health/readiness checks, the curated
+source registry (M1), fail-safe ingestion (M1), SQLite persistence + embeddings + semantic dedup
+(M3), cloud-LLM enrichment + entity/relationship extraction (M4), and — new in M5 — **projects the
+SQLite graph (items/sources/entities/events/topics + timestamped edges) into Neo4j** with idempotent
+MERGEs, plus a **graph-aware ranking signal** (convergence across distinct sources + centrality +
+recency). The graph signal is layered ON TOP OF the canonical priority class
+(`app/scoring/priority.py`, imported, never re-derived): it reorders within/across classes but never
+changes the class, and **hype still only demotes**. Projection is **degrade-don't-crash** (a Neo4j
+write failure leaves the Event flagged for re-projection and the run continues); `graph-reindex`
+rebuilds Neo4j purely from SQLite. SQLite is the source of truth; Qdrant and Neo4j are rebuildable
+derived indices (ADR 0001).
 
 ## Requirements
 
@@ -50,21 +51,22 @@ The source registry is read from `SOURCES_FILE` (default `sources/sources.yaml`,
 repo root). A malformed entry is reported (logged) and skipped — it never crashes a request or a
 run. Ingestion (`app.ingestion.run_ingestion`) is a library call, not yet an endpoint.
 
-### Store + enrich CLI
+### Store + enrich + graph CLI
 
 ```bash
-# Ingest → SQLite + Qdrant → dedup into Events → enrich the new Events (M4):
+# Ingest → SQLite + Qdrant → dedup → enrich (M4) → project to Neo4j (M5):
 python -m app.cli run
 python -m app.cli run --no-enrich   # skip enrichment (M3 behaviour)
-# Rebuild the Qdrant 'items' collection purely from SQLite (proves the derived-index invariant):
-python -m app.cli reindex
+python -m app.cli run --no-graph    # skip the Neo4j projection (M4 behaviour)
+# Rebuild a derived index purely from SQLite (proves the derived-index invariant):
+python -m app.cli reindex           # Qdrant 'items' collection
+python -m app.cli graph-reindex     # Neo4j knowledge graph
 ```
 
-`run` honours `DATABASE_URL`, `QDRANT_URL`, the embedder selector (`EMBEDDER` / `EMBEDDING_MODEL`),
-and the LLM provider (`LLM_PROVIDER` / `LLM_MODEL`). Dedup is two-stage — exact **content hash**
-then **Qdrant ANN cosine ≥ `DEDUP_TAU`** (default `0.92`) — and idempotent. Enrichment runs **once
-per new Event** (not per duplicate) and is idempotent too (one `EnrichedItem` per Event); with no
-API key it still enriches via the rule-based fallback.
+`run` honours `DATABASE_URL`, `QDRANT_URL`, `NEO4J_*`, the embedder selector, and the LLM provider.
+Dedup is two-stage (content hash → Qdrant ANN ≥ `DEDUP_TAU`) and idempotent; enrichment runs once
+per new Event; **graph projection runs after enrichment**, is idempotent (MERGE), and degrades if
+Neo4j is down (the Event is flagged `projected=False` for a later `graph-reindex`).
 
 ## Test
 
@@ -73,28 +75,29 @@ pytest
 ```
 
 All tests are **offline and deterministic**: in-memory SQLite, in-process Qdrant (`:memory:`), a
-`HashingEmbedder`, and a **fake LLM provider** — **no model download, no API key, no live
-containers**. M1/M2/M3 suites as before; new in M4: `test_enrichment.py` (output→`EnrichedItem`
-mapping, priority class from the canonical fn, malformed-output + no-provider fallback, entity
-normalisation/merge, fact-vs-interpretation, idempotency), `test_enrichment_parse.py` (JSON
-repair/validation), `test_ranking.py` (hype demotion, never additive).
+`HashingEmbedder`, a **fake LLM provider**, and an **in-memory graph store** — **no model download,
+no API key, no live containers**. M1–M4 suites as before; new in M5: `test_graph_projection.py`
+(expected nodes/edges, idempotent re-projection, `graph_reindex` rebuild-matches-from-SQLite, SQLite
+survives a simulated Neo4j write failure) and `test_graph_signals.py` (convergence promotes within a
+class without changing the class; hype still demotes; the signal never crosses priority classes).
 
 ## Layout
 
 ```
 app/
 ├── main.py        FastAPI app + CORS + lifespan (closes store clients on shutdown)
-├── cli.py         store + enrich path — `python -m app.cli run [--no-enrich] | reindex`
-├── core/          config (paths, HTTP, store URLs, embedder, DEDUP_TAU, LLM_PROVIDER/MODEL, ...)
+├── cli.py         run [--no-enrich|--no-graph] · reindex (Qdrant) · graph-reindex (Neo4j)
+├── core/          config (paths, store URLs, embedder, DEDUP_TAU, LLM_*, GRAPH_* weights)
 ├── api/           routers (health + /health/ready, sources)
 ├── schemas/       Pydantic shapes — ingestion (Source, RawItem) + enrichment (scores, entities)
 ├── sources/       registry loader (validate sources.yaml, fail-safe)
 ├── ingestion/     orchestrator + fetchers/ (rss, github_releases, arxiv; github_* stubs)
 ├── embeddings/    Embedder interface · HashingEmbedder (deterministic) · sentence-transformers
 ├── enrichment/    provider (LLM, lazy) · prompts · parse · fallback · graph_store · enricher
-├── db/            store clients — qdrant.py, neo4j.py (ping), sqlite.py (engine), qdrant_index.py
-├── models/        SQLModel tables — Source/RawItem/Event (M3) + EnrichedItem/Entity/Relationship (M4)
+├── graph/         GraphStore (Neo4j + in-memory) · projection (project_new/reindex) · util/schema
+├── db/            store clients — qdrant.py, neo4j.py (ping), sqlite.py, qdrant_index.py
+├── models/        SQLModel tables — Source/RawItem/Event/EnrichedItem/Entity/Relationship
 ├── storage/       hashing · repository (persist) · dedup (events + reindex) · pipeline (run path)
-├── scoring/       priority.py (canonical, tested) · scales · ranking (hype-aware)
+├── scoring/       priority.py (canonical) · scales · ranking (hype-aware) · graph_signals (M5)
 └── digests/       digest generation (placeholder — Task 008 / M7)
 ```

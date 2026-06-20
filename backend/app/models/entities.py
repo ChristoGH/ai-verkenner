@@ -128,6 +128,10 @@ class EnrichedItem(SQLModel, table=True):
     priority_class: str = Field(index=True)
     # How this enrichment was produced: "llm" or "fallback" (rule-based degrade).
     method: str = Field(default="llm")
+    # True once this Event has been projected into Neo4j (M5). A graph write failure leaves it
+    # False (the SQLite record stands); a later run / `graph-reindex` re-projects it — the
+    # Neo4j analogue of RawItem.embedded for Qdrant.
+    projected: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=_utcnow)
 
 

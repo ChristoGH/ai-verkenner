@@ -64,9 +64,10 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   ANN search / recreate); unlike `ping`, it raises so the persistence path can catch + degrade.
 - **`backend/app/models/`** — SQLModel tables (the SQLite system of record). M3: `Source`,
   `RawItem` (URL verbatim, identity `dedup_key` UNIQUE → idempotency, `content_hash`, nullable
-  `event_id`), `Event`. M4: `EnrichedItem` (one per Event, UNIQUE; the five scores, fact/
-  interpretation fields, derived `priority_class`), `Entity` (`normalised_name`+`type` resolution
-  key), `Relationship` (timestamped triple).
+  `event_id`, `embedded`), `Event`. M4: `EnrichedItem` (one per Event, UNIQUE; the five scores,
+  fact/interpretation fields, derived `priority_class`; M5 adds a `projected` flag — the Neo4j
+  analogue of `embedded`), `Entity` (`normalised_name`+`type` resolution key), `Relationship`
+  (timestamped triple).
 - **`backend/app/embeddings/`** — an injectable `Embedder` interface (M3): a deterministic
   `HashingEmbedder` (no model download — used by tests and as fallback) and a lazily-imported local
   `SentenceTransformerEmbedder`.
@@ -79,9 +80,14 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   `parse` (JSON repair + validation), `fallback` (deterministic rule-based degrade), `graph_store`
   (basic entity resolution + relationship persistence), and `enricher` (per-Event orchestration).
   Imports `scoring/priority.compute_priority_class`; never re-derives the rule.
+- **`backend/app/graph/`** — the M5 Neo4j projection: a small `GraphStore` interface with two
+  implementations (`neo4j_store` real Cypher, `memory` in-memory for tests), `projection`
+  (`project_event` / `project_new_events` degrade-don't-crash / `graph_reindex` rebuild-from-SQLite),
+  and `util` (label/edge whitelists, entity-type → label, UTC normalisation). Idempotent MERGEs.
 - **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, real and tested),
-  scoring scale constants, and `ranking.py` (M4 — hype-aware salience, hype as a demotion only).
-  Pure logic, no I/O.
+  scoring scale constants, `ranking.py` (hype-aware salience + the M5 `rank_with_graph` blend), and
+  `graph_signals.py` (M5 — convergence/centrality/recency read from the graph). Pure logic; the
+  graph signal adjusts order only, never the priority class, and hype stays a demotion.
 - **`backend/app/digests/`** — digest generation (Task 008).
 - **`frontend/`** — the React shell: typed API client + Zod schemas, a polling health badge,
   and pages for Dashboard, Items, Sources, Digests, Settings.
@@ -160,8 +166,21 @@ enrichment, the M3 local embedder reused. **Fail-safe per item:** a missing/fail
 degrades to a deterministic rule-based fallback (`method="fallback"`), so a run never stalls.
 **Idempotent:** one `EnrichedItem` per Event (UNIQUE) means re-runs don't re-enrich or duplicate
 entities/relationships. Entity resolution is Phase-1 **exact + normalised string match** only.
-Entities/relationships are written to **SQLite** here; the **Neo4j** projection and graph-aware
-ranking are M5 (no Neo4j writes yet).
+
+**M5 graph write & graph-aware ranking (current).** After enrichment, the run path projects the new,
+enriched Events into Neo4j (`project_new_events`). The graph schema is PHASE_1_PLAN §3: `Item`,
+`Source`, `Entity` (with `:Org`/`:Model`/… labels), `Event`, `Topic` nodes; `FROM`, `IN_EVENT`,
+`MENTIONS {ts}`, `INTERACTS_WITH {ts, kind}`, `ABOUT` edges (`SIMILAR_TO` deferred — no persisted
+pairwise scores). Every write is a `MERGE` so projection is idempotent. It is **degrade-don't-crash**
+like the Qdrant path: SQLite is written first (M3/M4); a Neo4j failure is caught, the Event is left
+`projected=False` for a later retry, and the run continues. `graph_reindex` clears and rebuilds the
+graph purely from SQLite (the derived-index invariant). Timestamps are treated as UTC consistently
+(M4 stores naive-UTC). **Graph-aware ranking** (`scoring/graph_signals.py` + `ranking.rank_with_graph`)
+reads a **convergence** signal — the count of *distinct sources* touching the same entity within a
+window (SIGNATURE_OUTPUTS §1) — plus degree/centrality and recency, blends them into the hype-aware
+salience tiebreak, and surfaces a `why`. This reorders items **within/across priority classes only**:
+the class still comes from `compute_priority_class`, and hype is never lifted. The convergence read
+is served by the `GraphStore` (in-memory in tests), so ranking needs no live Neo4j to test.
 
 ## Still deferred (directional, not committed)
 

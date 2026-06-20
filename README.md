@@ -21,16 +21,17 @@ quantity of noise.
 
 ## Status
 
-This repository is at milestone **M4 — Enrichment + entity/relationship extraction** on the Phase 1
-ladder ([`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md)). Done so far: health/readiness + the curated
-source registry (M1), `docker compose` infra for **Qdrant** + **Neo4j** (M2), SQLite persistence +
-local embeddings + semantic dedup into `Event`s (M3), and — new in M4 — each new Event is
-**enriched** by a cloud LLM (five scores with hype inverted + summary/why/action, fact kept separate
-from interpretation) and mined for **entities + timestamped relationships**, with the priority class
-imported from the canonical rule. Graph data is written to **SQLite** at M4; the **Neo4j**
-projection and graph-aware ranking are M5. Enrichment is fail-safe per item (LLM failure → rule-based
-fallback). SQLite is the source of truth; Qdrant and Neo4j are rebuildable derived indices
-([ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)).
+This repository is at milestone **M5 — Graph write + graph-aware ranking** on the Phase 1 ladder
+([`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md)). Done so far: the curated registry (M1), `docker
+compose` infra for **Qdrant** + **Neo4j** (M2), SQLite persistence + local embeddings + semantic
+dedup into `Event`s (M3), cloud-LLM enrichment + entity/relationship extraction (M4), and — new in
+M5 — the SQLite entities/relationships/items/events are **projected into a Neo4j knowledge graph**
+(idempotent MERGEs, degrade-don't-crash), and a **graph-aware ranking signal** (convergence across
+distinct sources + centrality + recency) reorders items *on top of* the canonical priority class.
+The priority class is unchanged by the graph and **hype still only demotes**. A `graph-reindex`
+rebuilds Neo4j purely from SQLite. SQLite is the source of truth; Qdrant and Neo4j are rebuildable
+derived indices ([ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)). The dashboard +
+Cosmograph view is M6.
 
 ## Repository layout
 

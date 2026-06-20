@@ -87,5 +87,16 @@ class Settings:
             "vector/graph databases, agentic systems, and AI developer tooling.",
         )
 
+        # Graph-aware ranking (M5). A transparent, documented adjustment layered ON TOP OF the
+        # canonical priority class — it reorders within/across classes, never redefines the class,
+        # and always respects the hype inversion. Window = how far back convergence is counted
+        # (0 disables the window → count all). Weights blend convergence / centrality / recency.
+        self.convergence_window_days: int = int(os.getenv("GRAPH_CONVERGENCE_WINDOW_DAYS", "30"))
+        self.graph_convergence_weight: float = float(os.getenv("GRAPH_CONVERGENCE_WEIGHT", "1.0"))
+        self.graph_degree_weight: float = float(os.getenv("GRAPH_DEGREE_WEIGHT", "0.5"))
+        self.graph_recency_weight: float = float(os.getenv("GRAPH_RECENCY_WEIGHT", "0.5"))
+        # How strongly the graph signal blends into the (hype-aware) salience tiebreak.
+        self.graph_signal_weight: float = float(os.getenv("GRAPH_SIGNAL_WEIGHT", "1.0"))
+
 
 settings = Settings()
