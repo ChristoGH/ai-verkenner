@@ -24,5 +24,6 @@ sources:
   - name: Example new repos (GitHub intelligence)
     source_type: github_new_repos
     url: https://github.com/topics/llm
+    github_topic: llm
     enabled: false
     trust_level: medium

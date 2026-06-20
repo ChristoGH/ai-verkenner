@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 
 from app.ingestion.fetchers.arxiv import build_arxiv_url, parse_arxiv
-from app.ingestion.fetchers.github_intelligence import fetch_github_new_repos
 from app.ingestion.fetchers.github_releases import parse_github_releases, releases_url
 from app.ingestion.fetchers.rss import parse_rss
 from app.ingestion.orchestrator import run_ingestion
@@ -110,18 +109,6 @@ def test_parse_arxiv_atom_minimal():
     assert items[0].url == "http://arxiv.org/abs/2606.00001v1"
 
 
-# ---- GitHub-intelligence stub ----
-
-
-def test_github_intelligence_stub_no_ops():
-    source = _source(
-        name="New repos",
-        source_type=SourceType.github_new_repos,
-        url="https://github.com/topics/llm",
-    )
-    assert fetch_github_new_repos(source) == []
-
-
 # ---- Orchestrator: per-source failure isolation ----
 
 
@@ -166,14 +153,18 @@ def test_orchestrator_skips_disabled_sources():
     assert {r.source_name for r in run.results} == {"On"}
 
 
-def test_orchestrator_runs_real_registry_stub_types_without_network():
-    """A github_* (stub) source runs through the real registry and yields zero items, no error."""
+def test_orchestrator_skips_github_sources_without_token(monkeypatch):
+    """Without GITHUB_TOKEN, a github_* source degrades to zero items through the real registry."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "github_token", None)
     source = _source(
-        name="Stub repos",
+        name="Watched repos",
         source_type=SourceType.github_new_repos,
         url="https://github.com/topics/llm",
+        github_topic="llm",
     )
-    run = run_ingestion([source])  # uses the real FETCHERS map
+    run = run_ingestion([source], max_age_days=0, max_items=0)  # uses the real FETCHERS map
     assert run.items == []
     assert len(run.succeeded) == 1
     assert run.succeeded[0].item_count == 0

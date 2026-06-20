@@ -24,7 +24,7 @@ class SourceType(str, Enum):
     github_releases = "github_releases"
     arxiv = "arxiv"
 
-    # Curated GitHub-intelligence types (ADR 0002). Registered at M1; fetchers land in M3.
+    # Curated GitHub-intelligence types (ADR 0002). Registered at M1; fetchers implemented in M6.5.
     github_star_velocity = "github_star_velocity"
     github_new_repos = "github_new_repos"
     github_advisories = "github_advisories"
@@ -51,6 +51,11 @@ class Source(BaseModel):
     repo_owner: str | None = None
     repo_name: str | None = None
     arxiv_query: str | None = None
+    # Curated GitHub-intelligence targets (ADR 0002) — watched topic / package / issue-label.
+    github_topic: str | None = None       # github_new_repos / github_star_velocity by topic
+    github_ecosystem: str | None = None   # github_advisories: pip | npm | ... (default pip)
+    github_package: str | None = None     # github_advisories: package in the user's stack
+    github_label: str | None = None       # github_changes: issue/PR label (default breaking-change)
     enabled: bool = True
     trust_level: TrustLevel
 
@@ -63,17 +68,30 @@ class Source(BaseModel):
 
     @model_validator(mode="after")
     def _check_type_specific_fields(self) -> Source:
-        """Enforce the fields each source type needs to be fetchable.
-
-        Kept minimal: only the M1 fetchers (github_releases, arxiv) have hard requirements. The
-        GitHub-intelligence types are driven by watched orgs/users/topics whose required fields
-        are defined when their fetchers land (M3); they are not constrained here.
-        """
+        """Enforce the fields each source type needs to be fetchable (curated targets, ADR 0002)."""
         if self.source_type is SourceType.github_releases:
             if not self.repo_owner or not self.repo_name:
-                raise ValueError(
-                    "github_releases requires both 'repo_owner' and 'repo_name'"
-                )
+                raise ValueError("github_releases requires both 'repo_owner' and 'repo_name'")
         if self.source_type is SourceType.arxiv and not self.arxiv_query:
             raise ValueError("arxiv requires 'arxiv_query'")
+        # github_new_repos: a watched org/user (repo_owner) OR a watched topic.
+        if self.source_type is SourceType.github_new_repos:
+            if not self.repo_owner and not self.github_topic:
+                raise ValueError("github_new_repos requires 'repo_owner' or 'github_topic'")
+        # github_star_velocity: a watched topic OR a specific repo (repo_owner + repo_name).
+        if self.source_type is SourceType.github_star_velocity:
+            if not self.github_topic and not (self.repo_owner and self.repo_name):
+                raise ValueError(
+                    "github_star_velocity requires 'github_topic' or 'repo_owner'+'repo_name'"
+                )
+        # github_advisories: a watched package (in the user's stack), with an ecosystem.
+        if self.source_type is SourceType.github_advisories:
+            if not self.github_package and not (self.repo_owner and self.repo_name):
+                raise ValueError(
+                    "github_advisories requires 'github_package' or 'repo_owner'+'repo_name'"
+                )
+        # github_changes: a watched repo to scan for breaking-change/deprecation issues.
+        if self.source_type is SourceType.github_changes:
+            if not self.repo_owner or not self.repo_name:
+                raise ValueError("github_changes requires both 'repo_owner' and 'repo_name'")
         return self

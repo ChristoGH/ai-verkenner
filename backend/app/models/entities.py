@@ -161,3 +161,19 @@ class Relationship(SQLModel, table=True):
     event_id: int | None = Field(default=None, foreign_key="event.id", index=True)
     raw_item_id: int | None = Field(default=None, foreign_key="raw_item.id", index=True)
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class RepoStarSnapshot(SQLModel, table=True):
+    """A per-run snapshot of a watched repo's absolute star count (M6.5).
+
+    `github_star_velocity` is honest about velocity: it does NOT fake a rate from absolute stars.
+    Each run snapshots `stars` for a repo; the *velocity* is the delta against the previous snapshot
+    for the same repo. The first run for a repo seeds the baseline and emits nothing.
+    """
+
+    __tablename__ = "repo_star_snapshot"
+
+    id: int | None = Field(default=None, primary_key=True)
+    repo_full_name: str = Field(index=True)  # "owner/name"
+    stars: int
+    captured_at: datetime = Field(default_factory=_utcnow, index=True)

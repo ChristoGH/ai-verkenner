@@ -49,6 +49,18 @@ class Settings:
         # arXiv API max results per query (bounded so a query can't pull an unbounded page).
         self.arxiv_max_results: int = int(os.getenv("ARXIV_MAX_RESULTS", "25"))
 
+        # Per-source recency cap (M6.5), applied uniformly in ingestion. Bounds archive-serving
+        # feeds (Hugging Face served 803 entries, Eugene Yan 210) so a full sources.yaml run is
+        # affordable. AGE skips items older than the window; ITEMS is a hard per-source backstop.
+        self.source_max_age_days: int = int(os.getenv("SOURCE_MAX_AGE_DAYS", "30"))
+        self.source_max_items: int = int(os.getenv("SOURCE_MAX_ITEMS", "40"))
+
+        # Curated GitHub-intelligence fetchers (ADR 0002 — watched orgs/users/topics, NOT a crawler).
+        # A token is required; without it, github_* sources are skipped (degrade, never crash).
+        self.github_token: str | None = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+        # Hard ceiling on items a single github_* call returns (rate-limit + cost discipline).
+        self.github_per_source_items: int = int(os.getenv("GITHUB_PER_SOURCE_ITEMS", "15"))
+
         # SQLite is the system of record (ADR 0001). Arrived at M3.
         self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/ai_verkenner.db")
 

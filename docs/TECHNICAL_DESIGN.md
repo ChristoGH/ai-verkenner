@@ -74,7 +74,11 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
 - **`backend/app/storage/`** — the M3 store path: `hashing` (the two hashes), `repository`
   (upsert sources, idempotent item persistence), `dedup` (two-stage dedup → `Event`s, and
   `reindex`), and `pipeline` (`ingest_and_store`). Driven by `app/cli.py` (`run` / `reindex`).
-- **`backend/app/ingestion/`** — source fetching, fail-safe per source (Task 003).
+- **`backend/app/ingestion/`** — source fetching, fail-safe per source (Task 003). M6.5 adds the
+  curated `github_*` fetchers (`fetchers/github_intelligence.py` — new repos / star velocity /
+  advisories / changes via the official API, watched targets from `sources.yaml`, skipped without
+  `GITHUB_TOKEN`), the per-source recency cap (`orchestrator.apply_recency_cap`), and honest
+  star-velocity snapshots (`star_velocity_store.py` → `RepoStarSnapshot`).
 - **`backend/app/enrichment/`** — M4 enrichment + extraction: a provider-abstracted LLM client
   (`provider`, cloud by default, lazily imported), `prompts` (render the `prompts/` templates),
   `parse` (JSON repair + validation), `fallback` (deterministic rule-based degrade), `graph_store`
@@ -214,6 +218,19 @@ driving entity's distinct sources — so the `why` claim and the listed evidence
 #3). The store's `ConvergenceStat` gained `event_count` + `source_names` to feed this; everything is
 still served by the `GraphStore` (in-memory in tests). Re-validated on real data in
 [`m5.5-rerun-notes.md`](m5.5-rerun-notes.md).
+
+**M6.5 source breadth (current).** The M5.5 re-run showed the *signal* works but the *corpus* lacks
+independent cross-publisher overlap to feed convergence. M6.5 widens the intake: a **per-source
+recency cap** (`SOURCE_MAX_AGE_DAYS` / `SOURCE_MAX_ITEMS`, applied uniformly in the orchestrator)
+bounds archive-serving feeds so a full `sources.yaml` run is affordable; the four long-stubbed
+**`github_*` fetchers** are implemented as a *curated pipeline* (ADR 0002 — watched
+orgs/users/topics/packages via the official API, never a crawler; `GITHUB_TOKEN` required, skipped
+when absent; ~1 bounded call each, URLs preserved). **`github_star_velocity` is honest** — it
+snapshots absolute stars to SQLite (`RepoStarSnapshot`) and reports the *delta* against the previous
+run, seeding a baseline (emitting nothing) on first sight. `sources.yaml` is broadened with
+independent reputable outlets (so the same development is covered by distinct publishers) and the
+`github_*` sources are enabled. Re-validated on real data in
+[`m6.5-run-notes.md`](m6.5-run-notes.md). No scoring/graph-schema change.
 
 ## Still deferred (directional, not committed)
 

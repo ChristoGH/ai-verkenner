@@ -133,6 +133,7 @@ has a single acceptance gate that must be demonstrably true before the next star
 | **M5** | Graph write + graph-aware ranking | Neo4j | Nodes/edges written to Neo4j and rebuildable from SQLite; ranking blends `priority.py` with a convergence/centrality signal; a contrived converging set ranks above an isolated item. |
 | **M6** | Dashboard + Cosmograph | Cosmograph | `/graph` serves nodes/links; Core Radar list renders real ranked items; Cosmograph Network + Timeline render the week and highlight a cluster; source links preserved. |
 | **M5.5** | Convergence quality (hub-dampening) | — | *Inserted after M6's real-data smoke surfaced hub-dominated convergence (§7).* Hub-dampening (IDF + ≥2-distinct-source independence gate + singleton suppression) makes `/horizon` rank rare cross-source entities above ubiquitous hubs ('GitHub'/authors); the `why` evidence matches the listed sources; re-validated on a larger real feed set with semantic dedup actually running (`embedded > 0`). |
+| **M6.5** | Source breadth | — | *Inserted after the M5.5 re-run showed the corpus lacks cross-publisher overlap.* Implement the four curated `github_*` fetchers (ADR 0002 — watched orgs/users/topics/packages via the API, NOT a crawler; honest star-velocity via persisted snapshots), add a per-source recency cap so archive feeds (HF 803, Eugene 210) don't blow up a run, and broaden the registry with independent reputable outlets so cross-publisher convergence can actually fire. Re-validated: does `/horizon` surface a cross-publisher convergence rather than arXiv cross-listing? |
 | **M7** | Feedback + GraphRAG digest | (Qdrant+Neo4j) | Feedback persists and shifts ranking; weekly digest generated via Qdrant-retrieve → Neo4j-expand → LLM-compose; all 10 digest sections present; noise count honest. |
 | **M7.5** | Post generator (LinkedIn + Medium) | — | The week's intelligence renders as a **Weak Signal of the Week** + **Noise Report** draft for LinkedIn (hook+image) and Medium (long-form), with a Cosmograph image export; **draft-only, human-approved, no auto-posting**; source links + fact≠interpretation preserved. |
 | **M8** | First-phase hardening + demo gate | — | Full week, real sources, one `compose up` + one run command; all three stores consistent; viz renders; re-index rebuilds Qdrant+Neo4j from SQLite; **digest surfaces ≥1 real convergence the flat list missed.** |
@@ -214,16 +215,17 @@ writes → keep it a thin read-only projection with a test asserting no mutation
 ## 6. Dependency order
 
 ```
-M0 ✅ ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M5.5 ─▶ M7 ─▶ M8 (viable)
-                 (infra)  (vectors) (LLM)  (graph) (viz) (conv.   (rag)   │
-                                                          quality)        │
+M0 ✅ ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M5.5 ─▶ M6.5 ─▶ M7 ─▶ M8 (viable)
+                 (infra)  (vectors) (LLM)  (graph) (viz) (conv.  (source  (rag)  │
+                                                          quality) breadth)       │
                                                     ├─▶ M7.5 post generator (LinkedIn/Medium)
                                                     └─▶ M8.5 read-only MCP server
 ```
 
-**M5.5 is a corrective slice** placed after M6 because the M6 real-data smoke is what exposed the
-hub-dominated convergence (§7). It tightens the M5 signal before M7's GraphRAG digest leans on
-`/horizon` for the Weak-Signal-of-the-Week lane.
+**M5.5 and M6.5 are corrective slices** the M6 real-data smoke forced: M5.5 fixed the convergence
+*signal* (it favoured hubs); M6.5 fixes the convergence *fuel* (the corpus lacked independent
+cross-publisher sources, and the `github_*` early-signal feeds were still stubs). Both tighten the
+weak-signal lane before M7's GraphRAG digest leans on `/horizon`.
 
 M1 and M2 are independent and could run in parallel; everything after M3 is linear because each
 store/stage feeds the next. **M7.5 and M8.5 are projections of the M7 intelligence** — they depend

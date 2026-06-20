@@ -12,6 +12,7 @@ from app.models.entities import (
     Event,
     RawItem,
     Relationship,
+    RepoStarSnapshot,
     Source,
 )
 
@@ -22,4 +23,5 @@ __all__ = [
     "EnrichedItem",
     "Entity",
     "Relationship",
+    "RepoStarSnapshot",
 ]

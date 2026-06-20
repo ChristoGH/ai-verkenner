@@ -6,21 +6,24 @@
 # Schema per entry:
 #   name:         human-readable label (required)
 #   source_type:  rss | github_releases | arxiv                                  (required)
-#                 | github_star_velocity | github_new_repos                      (curated GitHub
-#                 | github_advisories | github_changes                           #  intelligence,
-#                                                                                #  ADR 0002 — M3)
+#                 | github_new_repos | github_star_velocity                      (curated GitHub
+#                 | github_advisories | github_changes                          #  intelligence,
+#                                                                               #  ADR 0002 — M6.5)
 #   url:          canonical URL / feed URL           (required; preserved verbatim)
-#   repo_owner:   GitHub org/user   (github_releases only)
-#   repo_name:    GitHub repo       (github_releases only)
+#   repo_owner:   GitHub org/user   (github_releases; github_changes; optional new_repos/velocity)
+#   repo_name:    GitHub repo       (github_releases; github_changes; optional advisories/velocity)
 #   arxiv_query:  arXiv API query   (arxiv only)
+#   github_topic: watched topic     (github_new_repos / github_star_velocity)
+#   github_package + github_ecosystem: watched dependency  (github_advisories — Early Warning)
+#   github_label: issue/PR label    (github_changes; default "breaking-change")
 #   enabled:      true | false                        (required)
 #   trust_level:  high | medium | low                 (required)
 #
-# The github_* intelligence types are sanctioned by docs/decisions/0002-... They stay CURATED
-# (watched orgs/users/topics + the official GitHub API), never a broad crawler. Their fetchers
-# land in M3; declared entries below are validated now but kept `enabled: false` until then.
+# The github_* intelligence types are sanctioned by ADR 0002 / SIGNATURE_OUTPUTS §4. They stay
+# CURATED (watched orgs/users/topics/packages + the official GitHub API), never a broad crawler.
+# They require GITHUB_TOKEN; without it they are skipped (degrade, never crash). Implemented in M6.5.
 #
-# URLs are best-effort real where known; treat any as placeholders to verify in Task 002/003.
+# A per-source recency cap (SOURCE_MAX_AGE_DAYS / SOURCE_MAX_ITEMS) bounds archive-serving feeds.
 
 sources:
   # ---- Frontier labs ----
@@ -62,9 +65,12 @@ sources:
     enabled: true
     trust_level: medium
 
-  - name: LlamaIndex Blog
-    source_type: rss
-    url: https://www.llamaindex.ai/blog/feed
+  # LlamaIndex's blog RSS 404s; track its releases instead (reliable, same signal source).
+  - name: LlamaIndex Releases
+    source_type: github_releases
+    url: https://github.com/run-llama/llama_index/releases
+    repo_owner: run-llama
+    repo_name: llama_index
     enabled: true
     trust_level: medium
 
@@ -107,6 +113,39 @@ sources:
     enabled: true
     trust_level: high
 
+  # ---- Independent outlets (cross-publisher overlap → convergence can actually fire, M6.5) ----
+  # Reputable AI-covering publishers. Different outlets often cover the same launch, so a real
+  # development converges across INDEPENDENT sources. High volume → bounded by the recency cap.
+  - name: Ars Technica AI
+    source_type: rss
+    url: https://arstechnica.com/ai/feed/
+    enabled: true
+    trust_level: high
+
+  - name: VentureBeat AI
+    source_type: rss
+    url: https://venturebeat.com/category/ai/feed/
+    enabled: true
+    trust_level: medium
+
+  - name: MIT Technology Review
+    source_type: rss
+    url: https://www.technologyreview.com/feed/
+    enabled: true
+    trust_level: high
+
+  - name: The Register
+    source_type: rss
+    url: https://www.theregister.com/headlines.atom
+    enabled: true
+    trust_level: medium
+
+  - name: Hacker News (front page)
+    source_type: rss
+    url: https://hnrss.org/frontpage
+    enabled: true
+    trust_level: low
+
   # ---- Practitioners / individuals ----
   - name: Simon Willison's Weblog
     source_type: rss
@@ -137,32 +176,58 @@ sources:
     enabled: true
     trust_level: high
 
-  # ---- Curated GitHub intelligence (ADR 0002) — declared & validated now, active in M3 ----
-  # These stay disabled until their fetchers land; the registry validates them today.
+  # ---- Curated GitHub intelligence (ADR 0002) — implemented in M6.5; require GITHUB_TOKEN ----
+  # Watched orgs/users/topics/packages via the official API — NOT a crawler. Skipped (not failed)
+  # when GITHUB_TOKEN is absent.
   - name: New repos under topic:llm
     source_type: github_new_repos
     url: https://github.com/topics/llm
-    enabled: false
+    github_topic: llm
+    enabled: true
     trust_level: medium
 
-  - name: Star velocity under topic:rag
-    source_type: github_star_velocity
+  - name: New repos under topic:rag
+    source_type: github_new_repos
     url: https://github.com/topics/rag
-    enabled: false
+    github_topic: rag
+    enabled: true
     trust_level: medium
 
-  - name: Advisories — qdrant/qdrant (own stack)
+  - name: Star velocity under topic:llm
+    source_type: github_star_velocity
+    url: https://github.com/topics/llm
+    github_topic: llm
+    enabled: true
+    trust_level: medium
+
+  - name: Star velocity under topic:agents
+    source_type: github_star_velocity
+    url: https://github.com/topics/agents
+    github_topic: agents
+    enabled: true
+    trust_level: medium
+
+  - name: Advisories — fastapi (own stack)
     source_type: github_advisories
-    url: https://github.com/qdrant/qdrant/security/advisories
-    repo_owner: qdrant
-    repo_name: qdrant
-    enabled: false
+    url: https://github.com/advisories?query=affects%3Afastapi
+    github_package: fastapi
+    github_ecosystem: pip
+    enabled: true
     trust_level: high
 
-  - name: Breaking changes — fastapi/fastapi
+  - name: Advisories — langchain (own stack)
+    source_type: github_advisories
+    url: https://github.com/advisories?query=affects%3Alangchain
+    github_package: langchain
+    github_ecosystem: pip
+    enabled: true
+    trust_level: high
+
+  - name: Breaking changes — langchain-ai/langchain
     source_type: github_changes
-    url: https://github.com/fastapi/fastapi/issues
-    repo_owner: fastapi
-    repo_name: fastapi
-    enabled: false
+    url: https://github.com/langchain-ai/langchain/issues
+    repo_owner: langchain-ai
+    repo_name: langchain
+    github_label: "breaking change"
+    enabled: true
     trust_level: high
