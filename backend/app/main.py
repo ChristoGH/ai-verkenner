@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health, sources
+from app.api import graph, health, horizon, items, sources
 from app.core.config import settings
 from app.db import neo4j, qdrant
 
@@ -35,6 +35,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health/readiness + curated source registry. Other resource routers arrive in later milestones.
+# Health/readiness + curated source registry + the M6 dashboard surface.
 app.include_router(health.router)
 app.include_router(sources.router)
+app.include_router(items.router)     # /items — ranked Core Radar
+app.include_router(graph.router)     # /graph — Cosmograph nodes/links
+app.include_router(horizon.router)   # /horizon — weak-signal quadrant by convergence

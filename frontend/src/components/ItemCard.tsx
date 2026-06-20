@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Network } from "lucide-react";
 import type { Item, PriorityClass } from "@/api/items";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,32 +19,14 @@ const PRIORITY_VARIANT: Record<PriorityClass, BadgeProps["variant"]> = {
 };
 
 /**
- * Static placeholder card that documents the intended EnrichedItem layout. In Task 001 the data
- * is illustrative only — no API is wired. Task 006 supplies real items via GET /items.
+ * Real EnrichedItem card (M6), wired to GET /items via the Zod-validated client.
  *
- * Note the deliberate split between SOURCE FACT (summary) and INTERPRETATION (why it matters /
- * recommended action), and that the source link is always shown.
+ * Invariants made visible: SOURCE FACT (summary) is kept distinct from INTERPRETATION
+ * (why-it-matters / recommended action); the five scores show with hype labelled inverted; the
+ * source link is always shown; and when the graph signal fired, its `why` is surfaced. Feedback
+ * buttons render but are inert until M7.
  */
-const PLACEHOLDER_ITEM: Item = {
-  id: "placeholder-1",
-  title: "Example development title (placeholder)",
-  source_name: "Example Source",
-  source_url: "https://example.com/placeholder",
-  published_at: "2026-06-18",
-  priority_class: "operational_update",
-  summary: "What the source actually stated, in plain language. (Source fact — placeholder.)",
-  why_it_matters: "Why this could matter. (Interpretation — kept separate from the fact.)",
-  recommended_action: "One concrete next step, or 'no action — awareness only'. (Placeholder.)",
-  scores: {
-    relevance: 3,
-    novelty: 2,
-    actionability: 2,
-    strategic_potential: 1,
-    hype: 1,
-  },
-};
-
-export function ItemCard({ item = PLACEHOLDER_ITEM }: { item?: Item }) {
+export function ItemCard({ item }: { item: Item }) {
   const { scores } = item;
   return (
     <Card>
@@ -56,11 +38,19 @@ export function ItemCard({ item = PLACEHOLDER_ITEM }: { item?: Item }) {
           </Badge>
         </div>
         <div className="text-xs text-muted-foreground">
-          {item.source_name} · {item.published_at}
+          {item.source_name}
+          {item.published_at ? ` · ${item.published_at.slice(0, 10)}` : ""}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-3 text-sm">
+        {item.graph_why ? (
+          <div className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+            <Network className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>{item.graph_why}</span>
+          </div>
+        ) : null}
+
         <div>
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Summary (source fact)
@@ -100,7 +90,7 @@ export function ItemCard({ item = PLACEHOLDER_ITEM }: { item?: Item }) {
       </CardContent>
 
       <CardFooter className="flex flex-wrap gap-2">
-        {/* Feedback buttons — inert placeholders; wired in Task 007. */}
+        {/* Feedback buttons — inert placeholders; wired in Task 007 (M7). */}
         <Button size="sm" variant="outline" disabled>
           Useful
         </Button>

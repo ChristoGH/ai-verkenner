@@ -27,10 +27,37 @@ class Neighbour:
     score: float
 
 
+def _existing_dim(client: QdrantClient) -> int | None:
+    """The configured vector size of the existing `items` collection, or None if unreadable."""
+    try:
+        vectors = client.get_collection(ITEMS_COLLECTION).config.params.vectors
+        if hasattr(vectors, "size"):
+            return int(vectors.size)
+        if isinstance(vectors, dict) and vectors:  # named-vectors form
+            first = next(iter(vectors.values()))
+            return int(getattr(first, "size", None)) if getattr(first, "size", None) else None
+    except Exception:  # noqa: BLE001 — best-effort introspection
+        return None
+    return None
+
+
 def ensure_collection(client: QdrantClient, dim: int) -> None:
-    """Create the `items` collection (cosine) if it does not already exist."""
+    """Ensure the `items` collection exists at the embedder's dimension (cosine).
+
+    Self-heals a **dimension drift**: if the collection already exists at a different vector size
+    (e.g. a stale collection left by a different embedder), it is dropped and recreated — the
+    collection is a rebuildable derived index, so this is safe and avoids the "expected dim X, got
+    Y" search failures the M6 real-data smoke surfaced. `reindex` then re-embeds from SQLite.
+    """
     if client.collection_exists(ITEMS_COLLECTION):
-        return
+        existing = _existing_dim(client)
+        if existing is None or existing == dim:
+            return
+        logger.warning(
+            "qdrant '%s' dim %d != embedder dim %d; recreating (derived index, rebuildable)",
+            ITEMS_COLLECTION, existing, dim,
+        )
+        client.delete_collection(ITEMS_COLLECTION)
     client.create_collection(
         collection_name=ITEMS_COLLECTION,
         vectors_config=models.VectorParams(size=dim, distance=models.Distance.COSINE),

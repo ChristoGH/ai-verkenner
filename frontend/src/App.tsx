@@ -1,14 +1,21 @@
+import { Suspense, lazy } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Dashboard } from "@/pages/Dashboard";
 import { Items } from "@/pages/Items";
+import { Horizon } from "@/pages/Horizon";
 import { Sources } from "@/pages/Sources";
 import { Digests } from "@/pages/Digests";
 import { Settings } from "@/pages/Settings";
 
+// Code-split the Graph route — Cosmograph (WebGL) is heavy and only needed here.
+const Graph = lazy(() => import("@/pages/Graph").then((m) => ({ default: m.Graph })));
+
 const NAV = [
-  { to: "/", label: "Dashboard", end: true },
+  { to: "/", label: "Core Radar", end: true },
   { to: "/items", label: "Items", end: false },
+  { to: "/horizon", label: "Horizon", end: false },
+  { to: "/graph", label: "Graph", end: false },
   { to: "/sources", label: "Sources", end: false },
   { to: "/digests", label: "Digests", end: false },
   { to: "/settings", label: "Settings", end: false },
@@ -44,6 +51,15 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/items" element={<Items />} />
+          <Route path="/horizon" element={<Horizon />} />
+          <Route
+            path="/graph"
+            element={
+              <Suspense fallback={<p className="text-sm text-muted-foreground">Loading graph…</p>}>
+                <Graph />
+              </Suspense>
+            }
+          />
           <Route path="/sources" element={<Sources />} />
           <Route path="/digests" element={<Digests />} />
           <Route path="/settings" element={<Settings />} />

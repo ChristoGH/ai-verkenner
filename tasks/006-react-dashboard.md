@@ -1,6 +1,13 @@
 # Task 006 (M6 — Dashboard + Cosmograph) — React Dashboard (Core Radar)
 
-**Status: M6 — TODO**
+**Status: M6 — IN REVIEW** (implemented on `feat/m6-dashboard`; awaiting review gate)
+
+> **Scope note (PHASE_1_PLAN §5 extends this task).** Beyond the original Core Radar `/items`, M6
+> also adds the **Cosmograph** `/graph` view (`@cosmograph/react`, Network + Timeline + Search,
+> click-an-entity → filter the list) and the **`/horizon`** weak-signal view (the
+> horizon_signal/archive quadrant ranked by graph convergence — the query that makes the "Weak
+> Signal of the Week" reachable). A real-data smoke over live feeds + Neo4j + a cloud LLM is
+> recorded in [`docs/m6-smoke-notes.md`](../docs/m6-smoke-notes.md).
 
 ## Goal
 

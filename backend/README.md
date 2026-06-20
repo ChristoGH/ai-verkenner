@@ -1,16 +1,22 @@
 # AI Verkenner — Backend
 
-FastAPI backend for AI Verkenner. At milestone **M5** it serves health/readiness checks, the curated
-source registry (M1), fail-safe ingestion (M1), SQLite persistence + embeddings + semantic dedup
-(M3), cloud-LLM enrichment + entity/relationship extraction (M4), and — new in M5 — **projects the
-SQLite graph (items/sources/entities/events/topics + timestamped edges) into Neo4j** with idempotent
-MERGEs, plus a **graph-aware ranking signal** (convergence across distinct sources + centrality +
-recency). The graph signal is layered ON TOP OF the canonical priority class
-(`app/scoring/priority.py`, imported, never re-derived): it reorders within/across classes but never
-changes the class, and **hype still only demotes**. Projection is **degrade-don't-crash** (a Neo4j
-write failure leaves the Event flagged for re-projection and the run continues); `graph-reindex`
-rebuilds Neo4j purely from SQLite. SQLite is the source of truth; Qdrant and Neo4j are rebuildable
-derived indices (ADR 0001).
+FastAPI backend for AI Verkenner. Through M5 it ingests (M1), persists + embeds + de-duplicates
+(M3), enriches with a cloud LLM + extracts entities/relationships (M4), and projects into a Neo4j
+graph with a graph-aware ranking signal (M5). New in **M6** is the **dashboard surface**:
+
+- `GET /items` — ranked **Core Radar**: `rank_with_graph` (priority class first, then hype-aware
+  salience + graph signal). Filter by `priority_class` and by mentioned `entity`. Each item carries
+  its source link, the five scores (hype labelled inverted), summary (fact) vs why/action
+  (interpretation), and the graph signal's `why`.
+- `GET /graph` — the **Cosmograph** projection: capped `{nodes, links}` (events + top entities by
+  degree), filterable by `window_days`/`priority`. `available: false` when Neo4j is down.
+- `GET /horizon` — the **weak-signal** view: the `horizon_signal`/`archive` quadrant ranked by graph
+  **convergence** (NOT the Core Radar order), each with its `why` + contributing sources.
+
+The graph signal is layered ON TOP OF the canonical priority class (`app/scoring/priority.py`,
+imported, never re-derived) — it reorders, never changes the class, and **hype still only demotes**.
+Every dashboard endpoint **degrades cleanly** when Neo4j is down (graph-less ordering, empty graph).
+SQLite is the source of truth; Qdrant and Neo4j are rebuildable derived indices (ADR 0001).
 
 ## Requirements
 
@@ -76,10 +82,11 @@ pytest
 
 All tests are **offline and deterministic**: in-memory SQLite, in-process Qdrant (`:memory:`), a
 `HashingEmbedder`, a **fake LLM provider**, and an **in-memory graph store** — **no model download,
-no API key, no live containers**. M1–M4 suites as before; new in M5: `test_graph_projection.py`
-(expected nodes/edges, idempotent re-projection, `graph_reindex` rebuild-matches-from-SQLite, SQLite
-survives a simulated Neo4j write failure) and `test_graph_signals.py` (convergence promotes within a
-class without changing the class; hype still demotes; the signal never crosses priority classes).
+no API key, no live containers**. M1–M5 suites as before; new in M6: `test_dashboard_api.py`
+(`/items` ranked; `/horizon` returns only the weak-signal quadrant ranked by convergence with the
+operational item excluded and the converging one on top; `/graph` capped nodes/links; all three
+degrade when Neo4j is down) and `test_qdrant_index.py` (the dim-mismatch self-heal from the M6 smoke).
+Frontend tests run with `npm test` (vitest). A real-data smoke is in `docs/m6-smoke-notes.md`.
 
 ## Layout
 
@@ -88,16 +95,16 @@ app/
 ├── main.py        FastAPI app + CORS + lifespan (closes store clients on shutdown)
 ├── cli.py         run [--no-enrich|--no-graph] · reindex (Qdrant) · graph-reindex (Neo4j)
 ├── core/          config (paths, store URLs, embedder, DEDUP_TAU, LLM_*, GRAPH_* weights)
-├── api/           routers (health + /health/ready, sources)
-├── schemas/       Pydantic shapes — ingestion (Source, RawItem) + enrichment (scores, entities)
+├── api/           routers (health, sources, items, graph, horizon) · deps · dashboard_service
+├── schemas/       Pydantic shapes — ingestion · enrichment · api (ItemOut/GraphOut/HorizonOut)
 ├── sources/       registry loader (validate sources.yaml, fail-safe)
 ├── ingestion/     orchestrator + fetchers/ (rss, github_releases, arxiv; github_* stubs)
 ├── embeddings/    Embedder interface · HashingEmbedder (deterministic) · sentence-transformers
 ├── enrichment/    provider (LLM, lazy) · prompts · parse · fallback · graph_store · enricher
-├── graph/         GraphStore (Neo4j + in-memory) · projection (project_new/reindex) · util/schema
+├── graph/         GraphStore (Neo4j + in-memory) · projection · graph_view (Cosmograph) · util
 ├── db/            store clients — qdrant.py, neo4j.py (ping), sqlite.py, qdrant_index.py
 ├── models/        SQLModel tables — Source/RawItem/Event/EnrichedItem/Entity/Relationship
 ├── storage/       hashing · repository (persist) · dedup (events + reindex) · pipeline (run path)
-├── scoring/       priority.py (canonical) · scales · ranking (hype-aware) · graph_signals (M5)
+├── scoring/       priority.py (canonical) · scales · ranking (hype-aware) · graph_signals
 └── digests/       digest generation (placeholder — Task 008 / M7)
 ```

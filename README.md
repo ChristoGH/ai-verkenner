@@ -21,17 +21,18 @@ quantity of noise.
 
 ## Status
 
-This repository is at milestone **M5 — Graph write + graph-aware ranking** on the Phase 1 ladder
+This repository is at milestone **M6 — Dashboard + Cosmograph** on the Phase 1 ladder
 ([`docs/PHASE_1_PLAN.md`](docs/PHASE_1_PLAN.md)). Done so far: the curated registry (M1), `docker
-compose` infra for **Qdrant** + **Neo4j** (M2), SQLite persistence + local embeddings + semantic
-dedup into `Event`s (M3), cloud-LLM enrichment + entity/relationship extraction (M4), and — new in
-M5 — the SQLite entities/relationships/items/events are **projected into a Neo4j knowledge graph**
-(idempotent MERGEs, degrade-don't-crash), and a **graph-aware ranking signal** (convergence across
-distinct sources + centrality + recency) reorders items *on top of* the canonical priority class.
-The priority class is unchanged by the graph and **hype still only demotes**. A `graph-reindex`
-rebuilds Neo4j purely from SQLite. SQLite is the source of truth; Qdrant and Neo4j are rebuildable
-derived indices ([ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)). The dashboard +
-Cosmograph view is M6.
+compose` infra for **Qdrant** + **Neo4j** (M2), SQLite persistence + embeddings + semantic dedup
+(M3), cloud-LLM enrichment + entity/relationship extraction (M4), Neo4j projection + graph-aware
+ranking (M5), and — new in M6 — the **dashboard**: a ranked **Core Radar** (`GET /items`), a
+**Cosmograph** network/timeline (`GET /graph`, click an entity to filter the list), and the
+**Horizon** weak-signal view (`GET /horizon` — the low-relevance quadrant ranked by graph
+convergence, the query behind the "Weak Signal of the Week"). The whole stack was validated on
+**real feeds + a live LLM** — findings (including where the convergence signal favours hub entities)
+are in [`docs/m6-smoke-notes.md`](docs/m6-smoke-notes.md). SQLite is the source of truth; Qdrant and
+Neo4j are rebuildable derived indices ([ADR 0001](docs/decisions/0001-graph-vector-visual-stack.md)).
+Feedback + GraphRAG digest are M7.
 
 ## Repository layout
 

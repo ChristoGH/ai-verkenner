@@ -10,8 +10,23 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.graph.store import ConvergenceStat, GraphCounts
-from app.graph.util import ENTITY, FROM, INTERACTS_WITH, MENTIONS, SOURCE, to_utc
+from app.graph.store import ConvergenceStat, GraphCounts, GraphLink, GraphNode, GraphView
+from app.graph.util import (
+    ENTITY,
+    EVENT,
+    FROM,
+    IN_EVENT,
+    INTERACTS_WITH,
+    ITEM,
+    MENTIONS,
+    SOURCE,
+    to_utc,
+)
+
+
+def _iso(value) -> str | None:
+    value = to_utc(value)
+    return value.isoformat() if value is not None else None
 
 
 class InMemoryGraph:
@@ -115,3 +130,82 @@ class InMemoryGraph:
 
     def counts(self) -> GraphCounts:
         return GraphCounts(nodes=len(self.nodes), edges=len(self.edges))
+
+    def graph_view(
+        self, *, limit: int = 150, window_days: int | None = None, priority: str | None = None
+    ) -> GraphView:
+        # entity uid -> degree (within window), for "top entities" selection.
+        degree: dict[object, int] = {}
+        for (rel, src, dst), props in self.edges.items():
+            if rel == INTERACTS_WITH:
+                for end in (src, dst):
+                    if end[0] == ENTITY:
+                        degree[end[1]] = degree.get(end[1], 0) + 1
+
+        entity_budget = max(1, limit // 2)
+        top_entities = sorted(
+            (uid for (label, uid) in self.nodes if label == ENTITY),
+            key=lambda uid: (-degree.get(uid, 0), uid),
+        )[:entity_budget]
+        kept = set(top_entities)
+
+        # item -> event (via IN_EVENT) for event↔entity mention links.
+        item_event: dict[object, object] = {}
+        for (rel, src, dst), _props in self.edges.items():
+            if rel == IN_EVENT and src[0] == ITEM and dst[0] == EVENT:
+                item_event[src[1]] = dst[1]
+
+        nodes: list[GraphNode] = []
+        node_ids: set[str] = set()
+        for uid in top_entities:
+            node = self.nodes[(ENTITY, uid)]
+            nodes.append(GraphNode(
+                id=f"entity:{uid}", label=str(node["props"].get("name", uid)),
+                kind="entity", type=node["props"].get("type"),
+            ))
+            node_ids.add(f"entity:{uid}")
+
+        links: list[GraphLink] = []
+        # entity-entity interactions among kept entities.
+        for (rel, src, dst), props in self.edges.items():
+            if rel == INTERACTS_WITH and src[0] == ENTITY and dst[0] == ENTITY:
+                if src[1] in kept and dst[1] in kept:
+                    links.append(GraphLink(
+                        source=f"entity:{src[1]}", target=f"entity:{dst[1]}",
+                        kind="interacts", ts=_iso(props.get("ts")),
+                    ))
+
+        # event -> entity (an item in the event mentions a kept entity).
+        seen_event_entity: set[tuple] = set()
+        for (rel, src, dst), props in self.edges.items():
+            if rel != MENTIONS or src[0] != ITEM or dst[0] != ENTITY:
+                continue
+            ent_uid = dst[1]
+            if ent_uid not in kept:
+                continue
+            event_uid = item_event.get(src[1])
+            if event_uid is None:
+                continue
+            ev_node = self.nodes.get((EVENT, event_uid))
+            if ev_node is None:
+                continue
+            if priority is not None and ev_node["props"].get("priority_class") != priority:
+                continue
+            ev_id = f"event:{event_uid}"
+            if ev_id not in node_ids and len(nodes) < limit:
+                nodes.append(GraphNode(
+                    id=ev_id, label=str(ev_node["props"].get("title", event_uid)),
+                    kind="event", priority_class=ev_node["props"].get("priority_class"),
+                ))
+                node_ids.add(ev_id)
+            edge_key = (event_uid, ent_uid)
+            if ev_id in node_ids and edge_key not in seen_event_entity:
+                seen_event_entity.add(edge_key)
+                links.append(GraphLink(
+                    source=ev_id, target=f"entity:{ent_uid}",
+                    kind="mentions", ts=_iso(props.get("ts")),
+                ))
+
+        # Drop links whose endpoints we didn't keep.
+        links = [l for l in links if l.source in node_ids and l.target in node_ids]
+        return GraphView(nodes=nodes, links=links, truncated=len(self.nodes) > len(nodes))

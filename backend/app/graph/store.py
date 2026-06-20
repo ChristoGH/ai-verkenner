@@ -32,9 +32,40 @@ class GraphCounts:
     edges: int
 
 
+@dataclass(frozen=True)
+class GraphNode:
+    """One node in the Cosmograph projection."""
+
+    id: str                       # e.g. "entity:5" / "event:3"
+    label: str
+    kind: str                     # "entity" | "event"
+    type: str | None = None       # entity type (org/model/...) when kind == "entity"
+    priority_class: str | None = None  # when kind == "event"
+    ts: str | None = None         # ISO timestamp for the Timeline (when known)
+
+
+@dataclass(frozen=True)
+class GraphLink:
+    """One edge in the Cosmograph projection."""
+
+    source: str
+    target: str
+    kind: str                     # "interacts" | "mentions"
+    ts: str | None = None
+
+
+@dataclass(frozen=True)
+class GraphView:
+    """A capped, readable projection for the frontend (events + top entities by default)."""
+
+    nodes: list[GraphNode]
+    links: list[GraphLink]
+    truncated: bool = False
+
+
 @runtime_checkable
 class GraphStore(Protocol):
-    """Idempotent MERGE-based graph writes + the convergence read."""
+    """Idempotent MERGE-based graph writes + the convergence and view reads."""
 
     def ensure_schema(self) -> None:
         """Create node-key uniqueness constraints/indexes (idempotent)."""
@@ -64,3 +95,12 @@ class GraphStore(Protocol):
 
     def counts(self) -> GraphCounts:
         """Total node and edge counts."""
+
+    def graph_view(
+        self,
+        *,
+        limit: int = 150,
+        window_days: int | None = None,
+        priority: str | None = None,
+    ) -> GraphView:
+        """A capped events+entities projection for Cosmograph (top entities by degree)."""

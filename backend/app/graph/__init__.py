@@ -11,12 +11,22 @@ SQLite stays the source of truth: writes go to SQLite first (M3/M4), then projec
 from app.graph.memory import InMemoryGraph
 from app.graph.neo4j_store import Neo4jGraphStore
 from app.graph.projection import graph_reindex, project_event, project_new_events
-from app.graph.store import ConvergenceStat, GraphCounts, GraphStore
+from app.graph.store import (
+    ConvergenceStat,
+    GraphCounts,
+    GraphLink,
+    GraphNode,
+    GraphStore,
+    GraphView,
+)
 
 __all__ = [
     "GraphStore",
     "ConvergenceStat",
     "GraphCounts",
+    "GraphNode",
+    "GraphLink",
+    "GraphView",
     "InMemoryGraph",
     "Neo4jGraphStore",
     "project_event",

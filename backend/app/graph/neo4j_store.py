@@ -11,10 +11,17 @@ record is already safe), exactly like the Qdrant path in M3.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from neo4j import Driver
 
-from app.graph.store import ConvergenceStat, GraphCounts
+from app.graph.store import (
+    ConvergenceStat,
+    GraphCounts,
+    GraphLink,
+    GraphNode,
+    GraphView,
+)
 from app.graph.util import (
     ENTITY,
     EVENT,
@@ -25,6 +32,16 @@ from app.graph.util import (
     TOPIC,
     to_utc,
 )
+
+
+def _iso(value) -> str | None:
+    """Neo4j temporal/native datetime → ISO-8601 UTC string (or None)."""
+    if value is None:
+        return None
+    if hasattr(value, "to_native"):
+        value = value.to_native()
+    value = to_utc(value)
+    return value.isoformat() if value is not None else None
 
 logger = logging.getLogger(__name__)
 
@@ -125,3 +142,61 @@ class Neo4jGraphStore:
         nodes = self._run("MATCH (n) RETURN count(n) AS c")[0]["c"]
         edges = self._run("MATCH ()-[r]->() RETURN count(r) AS c")[0]["c"]
         return GraphCounts(nodes=nodes, edges=edges)
+
+    def graph_view(self, *, limit=150, window_days=None, priority=None) -> GraphView:
+        since = None
+        if window_days and window_days > 0:
+            since = to_utc(datetime.now(timezone.utc) - timedelta(days=window_days))
+        entity_budget = max(1, limit // 2)
+
+        # 1) Top entities by interaction degree (capped) — keeps the network legible.
+        ent_rows = self._run(
+            "MATCH (e:Entity) "
+            "OPTIONAL MATCH (e)-[r:INTERACTS_WITH]-(:Entity) "
+            "WITH e, count(r) AS deg ORDER BY deg DESC, e.uid LIMIT $n "
+            "RETURN e.uid AS uid, e.name AS name, e.type AS type",
+            n=entity_budget,
+        )
+        kept = [r["uid"] for r in ent_rows]
+        kept_set = set(kept)
+        nodes: list[GraphNode] = [
+            GraphNode(id=f"entity:{r['uid']}", label=str(r["name"]), kind="entity", type=r["type"])
+            for r in ent_rows
+        ]
+        node_ids = {n.id for n in nodes}
+        links: list[GraphLink] = []
+
+        if kept:
+            # 2) Interactions among kept entities.
+            for r in self._run(
+                "MATCH (a:Entity)-[rel:INTERACTS_WITH]->(b:Entity) "
+                "WHERE a.uid IN $kept AND b.uid IN $kept "
+                "RETURN a.uid AS s, b.uid AS t, rel.ts AS ts",
+                kept=kept,
+            ):
+                links.append(GraphLink(source=f"entity:{r['s']}", target=f"entity:{r['t']}",
+                                       kind="interacts", ts=_iso(r["ts"])))
+
+            # 3) Event → entity (an item in the event mentions a kept entity), within window.
+            for r in self._run(
+                "MATCH (ev:Event)<-[:IN_EVENT]-(i:Item)-[m:MENTIONS]->(e:Entity) "
+                "WHERE e.uid IN $kept "
+                "  AND ($priority IS NULL OR ev.priority_class = $priority) "
+                "  AND ($since IS NULL OR (m.ts IS NOT NULL AND m.ts >= $since)) "
+                "WITH ev, e, max(m.ts) AS ts "
+                "RETURN ev.uid AS ev_uid, ev.title AS title, ev.priority_class AS pc, "
+                "       e.uid AS ent_uid, ts",
+                kept=kept, priority=priority, since=since,
+            ):
+                ev_id = f"event:{r['ev_uid']}"
+                if ev_id not in node_ids and len(nodes) < limit:
+                    nodes.append(GraphNode(id=ev_id, label=str(r["title"]), kind="event",
+                                           priority_class=r["pc"]))
+                    node_ids.add(ev_id)
+                if ev_id in node_ids:
+                    links.append(GraphLink(source=ev_id, target=f"entity:{r['ent_uid']}",
+                                           kind="mentions", ts=_iso(r["ts"])))
+
+        links = [l for l in links if l.source in node_ids and l.target in node_ids]
+        total = self._run("MATCH (n) RETURN count(n) AS c")[0]["c"]
+        return GraphView(nodes=nodes, links=links, truncated=total > len(nodes))

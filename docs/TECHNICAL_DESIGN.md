@@ -89,8 +89,14 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   `graph_signals.py` (M5 — convergence/centrality/recency read from the graph). Pure logic; the
   graph signal adjusts order only, never the priority class, and hype stays a demotion.
 - **`backend/app/digests/`** — digest generation (Task 008).
-- **`frontend/`** — the React shell: typed API client + Zod schemas, a polling health badge,
-  and pages for Dashboard, Items, Sources, Digests, Settings.
+- **`backend/app/api/`** — routers. M6 adds the dashboard surface (`items`, `graph`, `horizon`)
+  over a shared `dashboard_service` (rank/serialise/convergence) with injectable `deps` (session +
+  graph store, so endpoints degrade when Neo4j is down and tests run offline).
+- **`frontend/`** — the React shell (M6 wires it to the API): the Zod-validated client (`api/items`,
+  `api/graph`, `api/horizon`), a real `ItemCard`, an `ItemsFeed`, the **Core Radar** + **Items**
+  pages, a **Horizon** page (weak-signal quadrant with evidence), and a **Graph** page rendering
+  `@cosmograph/react` (`CosmographView`, lazy-loaded) where clicking an entity filters the list.
+  Tested with vitest (jsdom; Cosmograph + API mocked).
 
 ## The root-level `prompts/` and `sources/` decision
 
@@ -181,6 +187,19 @@ window (SIGNATURE_OUTPUTS §1) — plus degree/centrality and recency, blends th
 salience tiebreak, and surfaces a `why`. This reorders items **within/across priority classes only**:
 the class still comes from `compute_priority_class`, and hype is never lifted. The convergence read
 is served by the `GraphStore` (in-memory in tests), so ranking needs no live Neo4j to test.
+
+**M6 dashboard (current).** The `api/` dashboard endpoints make the intelligence visible:
+`GET /items` (ranked Core Radar via `rank_with_graph`, filterable by class/entity), `GET /graph`
+(the `GraphStore.graph_view` Cosmograph projection — top entities by degree + the events that
+mention them, capped to `limit` for legibility), and `GET /horizon` (the `horizon_signal`/`archive`
+quadrant ranked by graph convergence — the query behind the "Weak Signal of the Week", with each
+item's `why` + contributing sources). All three **degrade** when Neo4j is unreachable. The frontend
+consumes them through Zod-validated clients and renders Core Radar, Items, Horizon, and a Cosmograph
+Graph view. The first **real-data run** (live feeds + Neo4j + a cloud LLM) is documented in
+[`m6-smoke-notes.md`](m6-smoke-notes.md); its headline finding — the convergence signal currently
+favours *hub* entities over *quietly-emerging* ones (PHASE_1_PLAN §7) — is a Phase-2 item, and the
+smoke also surfaced + fixed a Qdrant collection dimension-drift (now self-healing in
+`qdrant_index.ensure_collection`).
 
 ## Still deferred (directional, not committed)
 
