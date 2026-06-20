@@ -239,6 +239,17 @@ parallel) once M7 lands.
   consistency test in M5/M8.
 - **Viz unreadable at scale.** *Mitigation:* window + priority filters, cap nodes, default to
   events + top entities, lean on the Timeline.
+- **Convergence may measure "loud now" rather than "quietly emerging."** The M5 signal is a
+  *windowed snapshot* of distinct-source count on an entity, which correlates with current
+  relevance/loudness; and because MENTIONS is attached from every item in an Event (correct for
+  source diversity), it cannot yet distinguish **independent convergence** (many sources, many
+  angles, genuinely emerging) from **syndication amplification** (one PR reprinted by many outlets).
+  *Mitigation / Phase 2:* compute convergence **trajectory** (week-over-week growth rate, per
+  [SIGNATURE_OUTPUTS §1](SIGNATURE_OUTPUTS.md)'s "4 → 11 items" framing), not just the snapshot;
+  weight sources by independence. Phase 1 ships the snapshot as a v1 proxy and the weak-signal
+  *selection* (filter to the horizon/archive quadrant, rank by graph score) is an explicit M7/M7.5
+  deliverable — the Core Radar's class-first ranking deliberately does **not** surface weak signals
+  on its own.
 
 ## 8. Definition of done (Phase 1)
 
@@ -249,8 +260,10 @@ Cosmograph graph/timeline; a GraphRAG weekly digest reads as decisions; `reindex
 derived stores from SQLite; and the system demonstrably surfaces at least one real convergence the
 flat list missed. The phase delivers its **value** at M7.5 (a publishable Weak Signal of the Week +
 Noise Report for LinkedIn/Medium, human-approved) and M8.5 (a read-only MCP server so agents can
-query the radar). At that point CLAUDE.md and TECHNICAL_DESIGN.md are updated to match, and Phase 2
-(scale sources, entity resolution, alerting, scenario analytics, read/write MCP) is planned.
+query the radar). At that point CLAUDE.md and TECHNICAL_DESIGN.md are updated to match, and **Phase
+2** is planned: scale sources; fuzzy/embedding **entity resolution**; **convergence trajectory**
+(growth-rate, not snapshot) and **source-independence weighting** (independent convergence vs
+syndication amplification); alerting/notifications; scenario analytics; read/write MCP.
 
 ## 9. Immediate next actions
 
