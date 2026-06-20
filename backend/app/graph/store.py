@@ -15,13 +15,20 @@ from typing import Protocol, runtime_checkable
 
 @dataclass(frozen=True)
 class ConvergenceStat:
-    """Per-entity graph signal inputs: distinct sources, raw mentions, degree, recency."""
+    """Per-entity graph signal inputs (M5.5 adds the hub-dampening inputs).
+
+    `distinct_sources` / `source_names` capture **independence** (how many distinct feeds touch the
+    entity). `event_count` is the number of distinct *developments* (Events) it spans — used both to
+    suppress singletons and as the IDF denominator (a ubiquitous hub spans almost every event).
+    """
 
     entity_uid: int
     distinct_sources: int
     mentions: int
     degree: int
     last_ts: datetime | None
+    event_count: int = 0
+    source_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

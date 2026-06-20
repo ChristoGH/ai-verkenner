@@ -132,6 +132,7 @@ has a single acceptance gate that must be demonstrably true before the next star
 | **M4** | Enrichment + entity/relationship extraction | (cloud LLM) | Each new item → 5 scores (hype inverted) + summary/why/action with fact≠interpretation, **and** a set of entities + timestamped relationship triples; priority class comes from `priority.py` (imported, not re-derived). |
 | **M5** | Graph write + graph-aware ranking | Neo4j | Nodes/edges written to Neo4j and rebuildable from SQLite; ranking blends `priority.py` with a convergence/centrality signal; a contrived converging set ranks above an isolated item. |
 | **M6** | Dashboard + Cosmograph | Cosmograph | `/graph` serves nodes/links; Core Radar list renders real ranked items; Cosmograph Network + Timeline render the week and highlight a cluster; source links preserved. |
+| **M5.5** | Convergence quality (hub-dampening) | — | *Inserted after M6's real-data smoke surfaced hub-dominated convergence (§7).* Hub-dampening (IDF + ≥2-distinct-source independence gate + singleton suppression) makes `/horizon` rank rare cross-source entities above ubiquitous hubs ('GitHub'/authors); the `why` evidence matches the listed sources; re-validated on a larger real feed set with semantic dedup actually running (`embedded > 0`). |
 | **M7** | Feedback + GraphRAG digest | (Qdrant+Neo4j) | Feedback persists and shifts ranking; weekly digest generated via Qdrant-retrieve → Neo4j-expand → LLM-compose; all 10 digest sections present; noise count honest. |
 | **M7.5** | Post generator (LinkedIn + Medium) | — | The week's intelligence renders as a **Weak Signal of the Week** + **Noise Report** draft for LinkedIn (hook+image) and Medium (long-form), with a Cosmograph image export; **draft-only, human-approved, no auto-posting**; source links + fact≠interpretation preserved. |
 | **M8** | First-phase hardening + demo gate | — | Full week, real sources, one `compose up` + one run command; all three stores consistent; viz renders; re-index rebuilds Qdrant+Neo4j from SQLite; **digest surfaces ≥1 real convergence the flat list missed.** |
@@ -213,11 +214,16 @@ writes → keep it a thin read-only projection with a test asserting no mutation
 ## 6. Dependency order
 
 ```
-M0 ✅ ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M7 ─▶ M8 (viable)
-                 (infra)  (vectors) (LLM)  (graph) (viz) (rag)   │
+M0 ✅ ─▶ M1 ─▶ M2 ─▶ M3 ─▶ M4 ─▶ M5 ─▶ M6 ─▶ M5.5 ─▶ M7 ─▶ M8 (viable)
+                 (infra)  (vectors) (LLM)  (graph) (viz) (conv.   (rag)   │
+                                                          quality)        │
                                                     ├─▶ M7.5 post generator (LinkedIn/Medium)
                                                     └─▶ M8.5 read-only MCP server
 ```
+
+**M5.5 is a corrective slice** placed after M6 because the M6 real-data smoke is what exposed the
+hub-dominated convergence (§7). It tightens the M5 signal before M7's GraphRAG digest leans on
+`/horizon` for the Weak-Signal-of-the-Week lane.
 
 M1 and M2 are independent and could run in parallel; everything after M3 is linear because each
 store/stage feeds the next. **M7.5 and M8.5 are projections of the M7 intelligence** — they depend

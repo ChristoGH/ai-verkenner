@@ -85,30 +85,39 @@ class InMemoryGraph:
     def convergence(self, since: datetime | None = None) -> list[ConvergenceStat]:
         since = to_utc(since)
 
-        # Map each Item uid -> its Source uid (via FROM edges).
-        item_source: dict[object, object] = {}
+        # Map each Item uid -> its Source name and Event uid (via FROM / IN_EVENT edges).
+        item_source_name: dict[object, str] = {}
         for (rel, src, dst), _props in self.edges.items():
-            if rel == FROM and src[0] == "Item" and dst[0] == SOURCE:
-                item_source[src[1]] = dst[1]
+            if rel == FROM and src[0] == ITEM and dst[0] == SOURCE:
+                name = self.nodes.get(dst, {}).get("props", {}).get("name")
+                item_source_name[src[1]] = str(name) if name is not None else f"source:{dst[1]}"
+        item_event: dict[object, object] = {}
+        for (rel, src, dst), _props in self.edges.items():
+            if rel == IN_EVENT and src[0] == ITEM and dst[0] == EVENT:
+                item_event[src[1]] = dst[1]
 
         stats: list[ConvergenceStat] = []
         for (label, uid), _node in self.nodes.items():
             if label != ENTITY:
                 continue
 
-            sources: set[object] = set()
+            sources: set[str] = set()
+            events: set[object] = set()
             mentions = 0
             last_ts: datetime | None = None
             degree = 0
             for (rel, src, dst), props in self.edges.items():
-                if rel == MENTIONS and dst == (ENTITY, uid) and src[0] == "Item":
+                if rel == MENTIONS and dst == (ENTITY, uid) and src[0] == ITEM:
                     ts = to_utc(props.get("ts"))
                     if since is not None and (ts is None or ts < since):
                         continue
                     mentions += 1
-                    src_uid = item_source.get(src[1])
-                    if src_uid is not None:
-                        sources.add(src_uid)
+                    name = item_source_name.get(src[1])
+                    if name is not None:
+                        sources.add(name)
+                    ev = item_event.get(src[1])
+                    if ev is not None:
+                        events.add(ev)
                     if ts is not None and (last_ts is None or ts > last_ts):
                         last_ts = ts
                 elif rel == INTERACTS_WITH and (ENTITY, uid) in (src, dst):
@@ -124,6 +133,8 @@ class InMemoryGraph:
                     mentions=mentions,
                     degree=degree,
                     last_ts=last_ts,
+                    event_count=len(events),
+                    source_names=tuple(sorted(sources)),
                 )
             )
         return stats

@@ -97,6 +97,10 @@ class Settings:
         self.graph_recency_weight: float = float(os.getenv("GRAPH_RECENCY_WEIGHT", "0.5"))
         # How strongly the graph signal blends into the (hype-aware) salience tiebreak.
         self.graph_signal_weight: float = float(os.getenv("GRAPH_SIGNAL_WEIGHT", "1.0"))
+        # M5.5 hub-dampening: an entity must be touched by at least this many DISTINCT sources to
+        # count as convergence (a single prolific feed/author is not convergence). Convergence is
+        # also IDF-weighted (ubiquitous hubs suppressed) and singletons (1 development) score ~0.
+        self.graph_min_sources: int = int(os.getenv("GRAPH_MIN_SOURCES", "2"))
 
 
 settings = Settings()

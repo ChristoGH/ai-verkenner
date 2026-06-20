@@ -19,40 +19,43 @@ from tests import graph_helpers as gh
 
 
 def _seed(session):
-    """Build three events: a converging horizon signal, an isolated horizon signal, an op update."""
-    # A: horizon_signal, 'RAG' touched by 3 distinct sources → strong convergence.
-    ev_a = gh.add_event(session, "Quietly converging RAG")
-    srcs = [gh.add_source(session, f"src{i}") for i in range(3)]
-    items_a = [
-        gh.add_item(session, srcs[i], ev_a, title="New RAG approach", url=f"https://src{i}/a")
-        for i in range(3)
-    ]
+    """Build a real cross-development convergence: 'RAG' across two horizon developments from two
+    distinct sources (a genuine emerging signal under M5.5), plus an excluded operational update and
+    a singleton horizon item that carries no convergence.
+    """
+    s1, s2, s3 = (gh.add_source(session, f"src{i}") for i in (1, 2, 3))
     rag = gh.add_entity(session, "RAG", "concept")
-    qdrant = gh.add_entity(session, "Qdrant", "tool")
-    gh.add_relationship(session, qdrant, "supports", rag, event=ev_a, item=items_a[0])
-    gh.add_enriched(session, ev_a, items_a[0], priority_class="horizon_signal", tags=["rag"],
-                    relevance=1, strategic_potential=4, hype=1)
+
+    # A1, A2: two horizon developments mentioning RAG, from two distinct sources → convergence.
+    rag_events = []
+    for i, src in enumerate((s1, s2)):
+        ev = gh.add_event(session, f"RAG development {i}")
+        item = gh.add_item(session, src, ev, title=f"New RAG approach {i}",
+                           url=f"https://{src.name}/rag{i}")
+        partner = gh.add_entity(session, f"RagPartner{i}", "tool")  # unique → not a driver
+        gh.add_relationship(session, rag, "advances", partner, event=ev, item=item)
+        gh.add_enriched(session, ev, item, priority_class="horizon_signal", tags=["rag"],
+                        relevance=1, strategic_potential=4, hype=1)
+        rag_events.append(ev)
 
     # B: operational_update, single source — must be EXCLUDED from /horizon.
     ev_b = gh.add_event(session, "Routine tool release")
-    src_b = gh.add_source(session, "srcB")
-    item_b = gh.add_item(session, src_b, ev_b, title="Tool 1.2 released", url="https://srcB/b")
+    item_b = gh.add_item(session, s3, ev_b, title="Tool 1.2 released", url="https://src3/b")
     foo = gh.add_entity(session, "Foobar", "tool")
     bar = gh.add_entity(session, "Baztool", "tool")
     gh.add_relationship(session, foo, "uses", bar, event=ev_b, item=item_b)
     gh.add_enriched(session, ev_b, item_b, priority_class="operational_update", tags=["misc"],
                     relevance=3, strategic_potential=1, hype=1)
 
-    # C: horizon_signal, isolated single source → weak convergence (ranks below A on /horizon).
+    # C: horizon_signal singleton — one development, one source → no convergence (ranks below RAG).
     ev_c = gh.add_event(session, "Lonely paper")
-    src_c = gh.add_source(session, "srcC")
-    item_c = gh.add_item(session, src_c, ev_c, title="A niche paper", url="https://srcC/c")
+    item_c = gh.add_item(session, s3, ev_c, title="A niche paper", url="https://src3/c")
     lone = gh.add_entity(session, "LoneConcept", "concept")
     other = gh.add_entity(session, "OtherConcept", "concept")
     gh.add_relationship(session, lone, "relates_to", other, event=ev_c, item=item_c)
     gh.add_enriched(session, ev_c, item_c, priority_class="horizon_signal", tags=["niche"],
                     relevance=1, strategic_potential=4, hype=1)
-    return ev_a, ev_b, ev_c
+    return rag_events, ev_b, ev_c
 
 
 @pytest.fixture
@@ -73,15 +76,15 @@ def client(session):
 
 
 def test_items_returns_ranked_core_radar(client):
-    tc, (ev_a, ev_b, ev_c), _store = client
+    tc, (rag_events, ev_b, ev_c), _store = client
     body = tc.get("/items").json()
-    assert len(body) == 3
+    assert len(body) == 4
     # operational_update outranks horizon_signal (priority class first).
     assert body[0]["id"] == str(ev_b.id)
     assert body[0]["priority_class"] == "operational_update"
-    # The converging horizon item carries its graph "why".
-    a = next(it for it in body if it["id"] == str(ev_a.id))
-    assert a["convergence"] == 3
+    # A converging RAG development carries its graph "why" (across 2 independent sources).
+    a = next(it for it in body if it["id"] == str(rag_events[0].id))
+    assert a["convergence"] == 2
     assert "convergence" in a["graph_why"]
 
 
@@ -98,34 +101,39 @@ def test_items_shape_has_all_fields(client):
 
 
 def test_items_filter_by_priority_class(client):
-    tc, (ev_a, ev_b, ev_c), _store = client
+    tc, (rag_events, ev_b, ev_c), _store = client
     body = tc.get("/items", params={"priority_class": "horizon_signal"}).json()
-    assert {it["id"] for it in body} == {str(ev_a.id), str(ev_c.id)}
+    assert {it["id"] for it in body} == {str(e.id) for e in rag_events} | {str(ev_c.id)}
 
 
 def test_items_filter_by_entity(client):
-    tc, (ev_a, ev_b, ev_c), _store = client
+    tc, (rag_events, ev_b, ev_c), _store = client
     body = tc.get("/items", params={"entity": "RAG"}).json()
-    assert {it["id"] for it in body} == {str(ev_a.id)}
+    assert {it["id"] for it in body} == {str(e.id) for e in rag_events}
 
 
 # ---- /horizon ----
 
 
 def test_horizon_excludes_operational_and_ranks_converging_first(client):
-    tc, (ev_a, ev_b, ev_c), _store = client
+    tc, (rag_events, ev_b, ev_c), _store = client
     body = tc.get("/horizon").json()
     ids = [it["id"] for it in body["items"]]
+    rag_ids = {str(e.id) for e in rag_events}
     # ONLY the weak-signal quadrant — the operational_update is excluded.
     assert str(ev_b.id) not in ids
-    assert set(ids) == {str(ev_a.id), str(ev_c.id)}
-    # The converging horizon item is on top, by graph convergence (NOT the class-first order).
-    assert ids[0] == str(ev_a.id)
+    assert set(ids) == rag_ids | {str(ev_c.id)}
+    # A converging RAG development is on top, by graph convergence (NOT the class-first order).
+    assert ids[0] in rag_ids
     top = body["items"][0]
-    assert top["convergence"] == 3
+    assert top["convergence"] == 2
     assert top["graph_score"] > 0
-    assert len(top["contributing_sources"]) == 3  # three independent sources
+    # Evidence behind the `why` IS the driving entity's distinct sources (reconciled, M6 finding #3).
+    assert set(top["contributing_sources"]) == {"src1", "src2"}
     assert "convergence" in top["graph_why"]
+    # The singleton horizon item carries no convergence and ranks last.
+    assert ids[-1] == str(ev_c.id)
+    assert body["items"][-1]["convergence"] == 0
 
 
 def test_horizon_degrades_without_graph(session):
@@ -137,8 +145,8 @@ def test_horizon_degrades_without_graph(session):
     finally:
         app.dependency_overrides.clear()
     assert body["graph_available"] is False
-    # Still returns the weak-signal quadrant (just graph-less ordering).
-    assert len(body["items"]) == 2
+    # Still returns the weak-signal quadrant (the two RAG developments + the singleton).
+    assert len(body["items"]) == 3
     assert all(it["priority_class"] in ("horizon_signal", "archive") for it in body["items"])
 
 

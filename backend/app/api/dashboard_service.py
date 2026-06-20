@@ -128,7 +128,7 @@ def ranked_items(
     return [serialize_item(session, e, signals.get(e.event_id)) for e in ordered]
 
 
-def _contributing_sources(session: Session, event_id: int) -> list[str]:
+def _event_coverage_sources(session: Session, event_id: int) -> list[str]:
     """Distinct source names of the items grouped into this Event (its independent coverage)."""
     items = session.exec(select(RawItem).where(RawItem.event_id == event_id)).all()
     seen: list[str] = []
@@ -138,14 +138,29 @@ def _contributing_sources(session: Session, event_id: int) -> list[str]:
     return seen
 
 
+def _contributing_sources(
+    session: Session, event_id: int, signal: GraphSignal | None
+) -> list[str]:
+    """The evidence behind the card's `why` (M5.5).
+
+    When the graph signal fired, the evidence is the **driving entity's** distinct sources — so the
+    card's claim ("convergence: 'X' across N sources") and the listed sources agree (M6 finding #3).
+    Otherwise (no signal / Neo4j down) fall back to this Event's own coverage sources.
+    """
+    if signal is not None and signal.evidence_sources:
+        return list(signal.evidence_sources)
+    return _event_coverage_sources(session, event_id)
+
+
 def horizon_items(
     session: Session, store: GraphStore | None, *, limit: int = 50
 ) -> list[HorizonItemOut]:
     """The weak-signal quadrant ranked by graph convergence (NOT the Core Radar order).
 
     Selects horizon_signal/archive items — the low-relevance ones the class-first feed buries — and
-    ranks THEM by the graph signal (convergence first), so a quietly-converging item rises to the
-    top. Each carries its `why` and contributing sources. Degrades when Neo4j is down.
+    ranks THEM by the (hub-dampened) graph signal, so a quietly-converging item rises to the top.
+    Each carries its `why` and the contributing sources behind that `why`. Degrades when Neo4j is
+    down.
     """
     rows = load_enriched(session, priority_classes=HORIZON_CLASSES)
     signals = compute_signals(session, store, rows)
@@ -163,6 +178,6 @@ def horizon_items(
         out.append(HorizonItemOut(
             **base.model_dump(),
             graph_score=sig.score if sig else 0.0,
-            contributing_sources=_contributing_sources(session, e.event_id),
+            contributing_sources=_contributing_sources(session, e.event_id, sig),
         ))
     return out

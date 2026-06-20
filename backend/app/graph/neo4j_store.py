@@ -112,17 +112,25 @@ class Neo4jGraphStore:
 
     def convergence(self, since=None) -> list[ConvergenceStat]:
         since = to_utc(since)
-        # Convergence/recency (via MENTIONS) and degree (via INTERACTS_WITH) are both scoped to the
-        # same `since` window so the signal reflects *recent* graph activity consistently.
+        # Per entity, within the window: the distinct source names + distinct events (developments)
+        # touching it (M5.5 hub-dampening inputs), plus mentions/recency/degree. Convergence,
+        # recency and degree are all window-scoped so the signal reflects *recent* activity.
         cypher = (
             "MATCH (e:Entity) "
-            "OPTIONAL MATCH (s:Source)<-[:FROM]-(i:Item)-[m:MENTIONS]->(e) "
+            "OPTIONAL MATCH (i:Item)-[m:MENTIONS]->(e) "
             "  WHERE $since IS NULL OR (m.ts IS NOT NULL AND m.ts >= $since) "
-            "WITH e, count(DISTINCT s) AS distinct_sources, count(m) AS mentions, "
-            "     max(m.ts) AS last_ts "
+            "OPTIONAL MATCH (i)-[:FROM]->(s:Source) "
+            "OPTIONAL MATCH (i)-[:IN_EVENT]->(ev:Event) "
+            "WITH e, count(m) AS mentions, max(m.ts) AS last_ts, "
+            "     collect(DISTINCT s.name) AS src_names_raw, "
+            "     collect(DISTINCT ev.uid) AS ev_uids_raw "
+            "WITH e, mentions, last_ts, "
+            "     [x IN src_names_raw WHERE x IS NOT NULL] AS source_names, "
+            "     size([x IN ev_uids_raw WHERE x IS NOT NULL]) AS event_count "
             "OPTIONAL MATCH (e)-[r:INTERACTS_WITH]-(:Entity) "
             "  WHERE $since IS NULL OR (r.ts IS NOT NULL AND r.ts >= $since) "
-            "RETURN e.uid AS uid, distinct_sources, mentions, last_ts, count(r) AS degree"
+            "RETURN e.uid AS uid, source_names, size(source_names) AS distinct_sources, "
+            "       mentions, last_ts, event_count, count(r) AS degree"
         )
         out: list[ConvergenceStat] = []
         for rec in self._run(cypher, since=since):
@@ -134,6 +142,8 @@ class Neo4jGraphStore:
                     mentions=rec["mentions"],
                     degree=rec["degree"],
                     last_ts=last_ts.to_native() if hasattr(last_ts, "to_native") else last_ts,
+                    event_count=rec["event_count"],
+                    source_names=tuple(str(n) for n in rec["source_names"]),
                 )
             )
         return out

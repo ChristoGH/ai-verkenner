@@ -86,8 +86,9 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   and `util` (label/edge whitelists, entity-type → label, UTC normalisation). Idempotent MERGEs.
 - **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, real and tested),
   scoring scale constants, `ranking.py` (hype-aware salience + the M5 `rank_with_graph` blend), and
-  `graph_signals.py` (M5 — convergence/centrality/recency read from the graph). Pure logic; the
-  graph signal adjusts order only, never the priority class, and hype stays a demotion.
+  `graph_signals.py` (convergence/centrality/recency, hub-dampened in M5.5 — IDF + distinct-source
+  independence gate + singleton suppression). Pure logic; the graph signal adjusts order only, never
+  the priority class, and hype stays a demotion.
 - **`backend/app/digests/`** — digest generation (Task 008).
 - **`backend/app/api/`** — routers. M6 adds the dashboard surface (`items`, `graph`, `horizon`)
   over a shared `dashboard_service` (rank/serialise/convergence) with injectable `deps` (session +
@@ -200,6 +201,19 @@ Graph view. The first **real-data run** (live feeds + Neo4j + a cloud LLM) is do
 favours *hub* entities over *quietly-emerging* ones (PHASE_1_PLAN §7) — is a Phase-2 item, and the
 smoke also surfaced + fixed a Qdrant collection dimension-drift (now self-healing in
 `qdrant_index.ensure_collection`).
+
+**M5.5 convergence quality / hub-dampening (current).** The M6 smoke proved the naive
+"distinct sources" convergence rewarded ubiquitous **hubs** ('GitHub', a prolific author). M5.5
+re-shapes `graph_signals` to surface *quietly-emerging* entities instead, with three documented
+dampeners: an **independence gate** (≥ `GRAPH_MIN_SOURCES` distinct sources, default 2 — gating the
+centrality term too, so a single-feed author can't dominate), **IDF weighting**
+(`idf = ln(total_developments / developments_mentioning_entity)` — ubiquitous hubs suppressed), and
+**singleton suppression** (an entity in one development contributes ~0). The driving entity is the
+one with the largest *dampened* contribution, and `/horizon`'s `contributing_sources` is now that
+driving entity's distinct sources — so the `why` claim and the listed evidence agree (M6 finding
+#3). The store's `ConvergenceStat` gained `event_count` + `source_names` to feed this; everything is
+still served by the `GraphStore` (in-memory in tests). Re-validated on real data in
+[`m5.5-rerun-notes.md`](m5.5-rerun-notes.md).
 
 ## Still deferred (directional, not committed)
 
