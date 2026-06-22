@@ -114,5 +114,21 @@ class Settings:
         # also IDF-weighted (ubiquitous hubs suppressed) and singletons (1 development) score ~0.
         self.graph_min_sources: int = int(os.getenv("GRAPH_MIN_SOURCES", "2"))
 
+        # Feedback → ranking (M7). How strongly a user's feedback blends into the (hype-aware,
+        # within-class) salience tiebreak — exactly like the graph signal, it never changes the
+        # priority class. useful/save lift by this much; not_useful demotes; ignore removes from the
+        # default feed (see app/scoring/feedback.py).
+        self.feedback_weight: float = float(os.getenv("FEEDBACK_WEIGHT", "2.0"))
+
+        # GraphRAG weekly digest (M7). Composed over already-enriched Events (one composition LLM
+        # call — enrichment is never re-run). `digest_period_days` bounds the window by published
+        # date (0 = the whole current corpus). `digest_high_hype` is the hype floor (inverted: 4–5)
+        # that counts an item as noise; `digest_section_limit` caps items per section for legibility.
+        self.digest_period_days: int = int(os.getenv("DIGEST_PERIOD_DAYS", "7"))
+        self.digest_high_hype: int = int(os.getenv("DIGEST_HIGH_HYPE", "4"))
+        self.digest_section_limit: int = int(os.getenv("DIGEST_SECTION_LIMIT", "8"))
+        # How many semantic neighbours the GraphRAG retrieve step pulls for the theme query.
+        self.digest_retrieve_limit: int = int(os.getenv("DIGEST_RETRIEVE_LIMIT", "40"))
+
 
 settings = Settings()

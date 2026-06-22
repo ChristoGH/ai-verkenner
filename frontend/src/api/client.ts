@@ -17,3 +17,20 @@ export async function apiGet<T>(path: string, schema: z.ZodType<T>): Promise<T> 
   const data = await res.json();
   return schema.parse(data);
 }
+
+/**
+ * Typed POST helper. Sends a JSON body, then parses the JSON response through the supplied Zod
+ * schema so nothing untyped escapes the API layer.
+ */
+export async function apiPost<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Request failed: ${res.status} ${res.statusText}`);
+  }
+  const data = await res.json();
+  return schema.parse(data);
+}

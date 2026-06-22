@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import graph, health, horizon, items, sources
+from app.api import digests, feedback, graph, health, horizon, items, sources
 from app.core.config import settings
 from app.db import neo4j, qdrant
 
@@ -41,3 +41,5 @@ app.include_router(sources.router)
 app.include_router(items.router)     # /items — ranked Core Radar
 app.include_router(graph.router)     # /graph — Cosmograph nodes/links
 app.include_router(horizon.router)   # /horizon — weak-signal quadrant by convergence
+app.include_router(feedback.router)  # /items/{id}/feedback — record feedback (M7)
+app.include_router(digests.router)   # /digests — decision-oriented briefings (M7)

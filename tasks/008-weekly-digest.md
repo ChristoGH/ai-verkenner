@@ -1,6 +1,15 @@
 # Task 008 (M7 — Feedback + GraphRAG digest) — Weekly Digest
 
-**Status: M7 — TODO**
+**Status: M7 — IN REVIEW** (implemented on `feat/m7-feedback-digest`; awaiting review gate)
+
+Implemented as a **GraphRAG** generator (`app/digests/`): embed the period's themes → Qdrant
+retrieve → Neo4j expand → one composition LLM call (or the deterministic fallback render). It
+composes over **already-enriched** Events (enrichment is never re-run), reuses `rank_with_graph` /
+`graph_signals` (no re-derivation of ranking or the priority rule), and degrades to SQLite-only when
+the stores are down. Persisted as `Digest`; `GET /digests` + `GET /digests/{id}`; a Digests page in
+the frontend. The weak-signals / research-radar sections draw from the hub-dampened convergence
+quadrant; the noise count is the honest archived/high-hype total. Covered by
+`backend/tests/test_digest.py` + the Digests page test. The CLI generates: `python -m app.cli digest`.
 
 ## Goal
 

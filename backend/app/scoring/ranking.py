@@ -52,21 +52,54 @@ def _graph_score(item: object, signals: Mapping) -> float:
     return float(getattr(signal, "score", 0.0)) if signal is not None else 0.0
 
 
-def graph_aware_key(item: object, signals: Mapping, *, signal_weight: float) -> tuple[int, float]:
-    """Sort key: priority class first, then (hype-aware salience + weighted graph signal).
+def _feedback_score(item: object, feedback: Mapping | None) -> float:
+    """The feedback adjustment for `item`, looked up by its `event_id` (0.0 if none) (M7)."""
+    if not feedback:
+        return 0.0
+    return float(feedback.get(getattr(item, "event_id", None), 0.0))
 
-    The graph signal only blends into the within-class tiebreak — it never moves an item between
-    priority classes, and it is *added* to salience (which already subtracts hype), so a high-hype
-    item with the same graph signal still ranks below its low-hype twin.
+
+def graph_aware_key(
+    item: object,
+    signals: Mapping,
+    *,
+    signal_weight: float,
+    feedback: Mapping | None = None,
+    feedback_weight: float = 0.0,
+) -> tuple[int, float]:
+    """Sort key: priority class first, then (hype-aware salience + graph signal + feedback) (M5/M7).
+
+    The graph signal AND the feedback adjustment only blend into the within-class tiebreak — neither
+    moves an item between priority classes, and both are *added* to salience (which already subtracts
+    hype), so a high-hype item with the same adjustments still ranks below its low-hype twin.
     """
-    blended = salience(item) + signal_weight * _graph_score(item, signals)
+    blended = (
+        salience(item)
+        + signal_weight * _graph_score(item, signals)
+        + feedback_weight * _feedback_score(item, feedback)
+    )
     return (_priority_order(item), -blended)
 
 
-def rank_with_graph(items: list, signals: Mapping, *, signal_weight: float | None = None) -> list:
-    """Rank by priority class, then by hype-aware salience blended with the graph signal (M5).
+def rank_with_graph(
+    items: list,
+    signals: Mapping,
+    *,
+    signal_weight: float | None = None,
+    feedback: Mapping | None = None,
+    feedback_weight: float | None = None,
+) -> list:
+    """Rank by priority class, then hype-aware salience blended with graph + feedback signals (M5/M7).
 
-    `signals` maps `event_id -> GraphSignal`. The priority class is untouched; hype still demotes.
+    `signals` maps `event_id -> GraphSignal`; `feedback` (optional, M7) maps `event_id -> delta`
+    (useful/save lift, not_useful demote). The priority class is untouched; hype still demotes. When
+    `feedback` is omitted the result is identical to the M5 graph-only ranking.
     """
     weight = settings.graph_signal_weight if signal_weight is None else signal_weight
-    return sorted(items, key=lambda it: graph_aware_key(it, signals, signal_weight=weight))
+    fb_weight = settings.feedback_weight if feedback_weight is None else feedback_weight
+    return sorted(
+        items,
+        key=lambda it: graph_aware_key(
+            it, signals, signal_weight=weight, feedback=feedback, feedback_weight=fb_weight
+        ),
+    )

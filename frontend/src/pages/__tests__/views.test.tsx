@@ -21,6 +21,15 @@ vi.mock("@/api/graph", async (importOriginal) => {
   const { sampleGraph } = await import("@/test/fixtures");
   return { ...actual, fetchGraph: vi.fn(async () => sampleGraph) };
 });
+vi.mock("@/api/digests", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/digests")>();
+  const { sampleDigestSummary, sampleDigest } = await import("@/test/fixtures");
+  return {
+    ...actual,
+    fetchDigests: vi.fn(async () => [sampleDigestSummary]),
+    fetchDigest: vi.fn(async () => sampleDigest),
+  };
+});
 
 // --- Mock the WebGL Cosmograph wrapper (doesn't run under jsdom) ---
 vi.mock("@/components/CosmographView", () => ({
@@ -32,6 +41,7 @@ vi.mock("@/components/CosmographView", () => ({
 import { Items } from "@/pages/Items";
 import { Horizon } from "@/pages/Horizon";
 import { Graph } from "@/pages/Graph";
+import { Digests } from "@/pages/Digests";
 
 describe("Items page", () => {
   it("renders the ranked feed from /items", async () => {
@@ -61,5 +71,15 @@ describe("Graph page", () => {
     // The entity drilldown appears, with the filtered items beneath it.
     expect(await screen.findByText(/Items mentioning/)).toBeInTheDocument();
     expect(await screen.findByText("OpenAI ships GPT-5")).toBeInTheDocument();
+  });
+});
+
+describe("Digests page", () => {
+  it("lists digests and renders the selected briefing (M7)", async () => {
+    renderWithProviders(<Digests />);
+    // The list shows the digest's provenance, and the body renders.
+    expect(await screen.findByText(/Weak signals/)).toBeInTheDocument();
+    expect(await screen.findByText(/RAG converging across sources/)).toBeInTheDocument();
+    expect(screen.getByText("GraphRAG")).toBeInTheDocument();
   });
 });

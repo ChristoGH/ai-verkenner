@@ -11,10 +11,12 @@ from __future__ import annotations
 from sqlmodel import Session, select
 
 from app.graph import GraphStore
-from app.models import EnrichedItem, Entity, RawItem, Relationship
+from app.models import EnrichedItem, Entity, Feedback, RawItem, Relationship
 from app.schemas.api import HorizonItemOut, ItemOut, ScoresOut
 from app.schemas.enrichment import normalise_entity_name
+from app.scoring import feedback as feedback_scoring
 from app.scoring import graph_signals
+from app.scoring.feedback import FeedbackState
 from app.scoring.graph_signals import GraphSignal
 from app.scoring.ranking import rank_with_graph, salience
 
@@ -70,6 +72,11 @@ def compute_signals(
     return graph_signals.compute_signals(session, store, [r.event_id for r in rows])
 
 
+def load_feedback_states(session: Session) -> dict[int, FeedbackState]:
+    """The latest-wins feedback state per Event (M7) — empty before any feedback exists."""
+    return feedback_scoring.latest_feedback(session.exec(select(Feedback)).all())
+
+
 def _representative(session: Session, enriched: EnrichedItem) -> RawItem | None:
     if enriched.raw_item_id is not None:
         item = session.get(RawItem, enriched.raw_item_id)
@@ -120,11 +127,22 @@ def ranked_items(
     priority_class: str | None = None,
     entity: str | None = None,
     limit: int = 100,
+    include_ignored: bool = False,
 ) -> list[ItemOut]:
-    """Core Radar order: priority class first, then hype-aware salience + graph signal."""
+    """Core Radar order: priority class first, then hype-aware salience + graph + feedback (M5/M7).
+
+    Feedback folds in transparently: `ignore`d Events drop from this default feed (unless
+    `include_ignored`), useful/save lift and not_useful demotes within the class. The priority class
+    is never changed and hype still demotes.
+    """
     rows = load_enriched(session, priority_class=priority_class, entity=entity)
+    states = load_feedback_states(session)
+    if not include_ignored:
+        hidden = feedback_scoring.hidden_event_ids(states)
+        rows = [r for r in rows if r.event_id not in hidden]
     signals = compute_signals(session, store, rows)
-    ordered = rank_with_graph(rows, signals)[:limit]
+    deltas = feedback_scoring.feedback_deltas(states)
+    ordered = rank_with_graph(rows, signals, feedback=deltas)[:limit]
     return [serialize_item(session, e, signals.get(e.event_id)) for e in ordered]
 
 

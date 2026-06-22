@@ -5,6 +5,8 @@
     python -m app.cli run --no-graph     # skip the Neo4j projection (M4 behaviour)
     python -m app.cli reindex            # rebuild the Qdrant 'items' collection purely from SQLite
     python -m app.cli graph-reindex      # rebuild the Neo4j graph purely from SQLite
+    python -m app.cli digest             # compose a GraphRAG weekly digest over enriched Events (M7)
+    python -m app.cli digest --days 14   # widen the digest window (0 = the whole corpus)
 
 Uses the configured DATABASE_URL, QDRANT_URL, NEO4J_*, embedder, and LLM provider. With no API key
 the run still enriches via the rule-based fallback; with Neo4j down the projection degrades and the
@@ -19,6 +21,7 @@ import logging
 from app.db import qdrant
 from app.db.neo4j import get_driver
 from app.db.sqlite import get_session, init_db
+from app.digests import generate_digest
 from app.embeddings import get_embedder
 from app.enrichment import Enricher, get_provider
 from app.graph import Neo4jGraphStore, graph_reindex
@@ -75,6 +78,33 @@ def _cmd_graph_reindex(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_digest(args: argparse.Namespace) -> int:
+    from app.db import neo4j
+
+    init_db()
+    embedder = get_embedder()
+    client = qdrant.get_client()
+    provider = get_provider()
+    # Degrade-don't-crash: skip the Neo4j expand when the graph is unreachable.
+    graph_store = Neo4jGraphStore(get_driver()) if neo4j.ping().ok else None
+    period_days = None if args.days is None else args.days
+    with get_session() as session:
+        digest = generate_digest(
+            session,
+            provider=provider,
+            embedder=embedder,
+            qdrant_client=client,
+            graph_store=graph_store,
+            period_days=period_days,
+        )
+    print(
+        f"digest: id={digest.id} method={digest.method} graphrag={digest.graphrag} "
+        f"body={digest.item_count} noise={digest.noise_count} "
+        f"events={len(digest.event_ids)} period={digest.period_start}..{digest.period_end}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="app.cli", description="AI Verkenner store/enrich/graph")
@@ -87,6 +117,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "graph-reindex", help="rebuild Neo4j from SQLite"
     ).set_defaults(func=_cmd_graph_reindex)
+    digest_parser = sub.add_parser("digest", help="compose a GraphRAG weekly digest (M7)")
+    digest_parser.add_argument(
+        "--days", type=int, default=None,
+        help="digest window in days (0 = whole corpus; default from DIGEST_PERIOD_DAYS)",
+    )
+    digest_parser.set_defaults(func=_cmd_digest)
 
     args = parser.parse_args(argv)
     return args.func(args)

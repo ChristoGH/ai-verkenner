@@ -1,6 +1,12 @@
 # Task 007 (M7 — Feedback + GraphRAG digest) — Feedback Actions
 
-**Status: M7 — TODO**
+**Status: M7 — IN REVIEW** (implemented on `feat/m7-feedback-digest`; awaiting review gate)
+
+Implemented: a `Feedback` model + `POST /items/{id}/feedback`; the `ItemCard` buttons wired via the
+Zod-validated client; the action folded into ranking by `app/scoring/feedback.py` as a transparent,
+documented **within-class tiebreak** (useful/save lift, not_useful demote, `ignore` removes from the
+default feed) — it never changes the canonical priority class and hype still demotes. The latest
+action per Event wins. Covered by `backend/tests/test_feedback.py` + the `ItemCard` test.
 
 ## Goal
 

@@ -177,3 +177,45 @@ class RepoStarSnapshot(SQLModel, table=True):
     repo_full_name: str = Field(index=True)  # "owner/name"
     stars: int
     captured_at: datetime = Field(default_factory=_utcnow, index=True)
+
+
+class Feedback(SQLModel, table=True):
+    """One feedback action on an Event (M7).
+
+    Feedback is keyed by `event_id` — the dashboard's item id is the Event id, and enrichment is
+    per-Event, so a useful/ignore decision is about the development, not a single duplicate. The
+    action is folded into ranking by `app/scoring/feedback.py` as a transparent, documented
+    within-class tiebreak (it never changes the canonical priority class, and hype still demotes).
+    Feedback is append-only history; the *latest* action per Event wins (see scoring/feedback.py).
+    """
+
+    __tablename__ = "feedback"
+
+    id: int | None = Field(default=None, primary_key=True)
+    event_id: int = Field(foreign_key="event.id", index=True)
+    action: str = Field(index=True)  # useful | not_useful | save | ignore
+    created_at: datetime = Field(default_factory=_utcnow, index=True)
+
+
+class Digest(SQLModel, table=True):
+    """A generated decision-oriented digest (M7).
+
+    SQLite is the source of truth (ADR 0001); the digest is *composed over already-enriched Events*
+    — it never re-runs enrichment. `content_md` is the rendered briefing (LLM-composed when a
+    provider is configured, else the deterministic fallback render). `noise_count` is the honest
+    count of archived / high-hype Events excluded from the body. `event_ids` records every Event the
+    digest drew from, so each referenced item keeps its source link.
+    """
+
+    __tablename__ = "digest"
+
+    id: int | None = Field(default=None, primary_key=True)
+    period_start: datetime | None = None
+    period_end: datetime | None = None
+    generated_at: datetime = Field(default_factory=_utcnow, index=True)
+    content_md: str
+    method: str = Field(default="llm")  # "llm" | "fallback"
+    item_count: int = 0                 # Events considered for the body
+    noise_count: int = 0                # archived / high-hype Events excluded (honest count)
+    graphrag: bool = False              # True when Qdrant-retrieve / Neo4j-expand actually ran
+    event_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))

@@ -232,6 +232,22 @@ independent reputable outlets (so the same development is covered by distinct pu
 `github_*` sources are enabled. Re-validated on real data in
 [`m6.5-run-notes.md`](m6.5-run-notes.md). No scoring/graph-schema change.
 
+**M7 feedback + GraphRAG digest (current).** Closes the core loop. **Feedback** (`Feedback` model +
+`POST /items/{id}/feedback`, wired to the `ItemCard` buttons) folds into ranking via
+`scoring/feedback.py` as a transparent **within-class tiebreak** — `rank_with_graph` gained an
+optional `feedback` term alongside the graph signal, so useful/save lift and not_useful demotes
+*without* changing the canonical `priority_class` and with hype still a demotion; `ignore` removes
+the item from the default feed. The latest action per Event wins. The **GraphRAG digest**
+(`backend/app/digests/`) composes one decision-oriented briefing over **already-enriched** Events
+(enrichment is never re-run): embed the period's themes → **Qdrant retrieve** (`retrieve.py`, focuses
+the body on the user's themes) → **Neo4j expand** (`graph_signals` convergence) → ten sections
+(`sections.py`, routed by the canonical priority class + source facts; reuses `rank_with_graph`, no
+re-derivation) → **one composition LLM call** (`prompts/digest.md`) or the deterministic fallback
+render (`render.py`). The weak-signals / research-radar sections draw from the hub-dampened
+convergence quadrant; the noise count is the honest archived/high-hype total. It degrades to
+SQLite-only when Qdrant/Neo4j are down and persists as `Digest` (`GET /digests`, `GET /digests/{id}`,
+a Digests page). Generated via `python -m app.cli digest`.
+
 ## Still deferred (directional, not committed)
 
 Gated behind the remaining `CLAUDE.md` exclusions until a task file names them: moving from SQLite
