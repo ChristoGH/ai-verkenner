@@ -24,7 +24,7 @@ validated. Next substantive milestone: **M7 (feedback + GraphRAG digest)**.
 | M5 Neo4j projection + graph-aware ranking | ✅ done | `9d09209` |
 | M5.5 Convergence quality (hub-dampening) | ✅ done | `63390ce` |
 | M6 Dashboard + Cosmograph + real-data smoke | ✅ done | `e001f32` |
-| M6.5 Source breadth (GitHub intel + recency cap) | ✅ done, **awaiting merge** | `7a6fb9f` |
+| M6.5 Source breadth (GitHub intel + recency cap) | ✅ done, **merged + pushed** | `7a6fb9f` |
 | M7 Feedback + GraphRAG digest | ⏳ next | — |
 | M7.5 Post generator (LinkedIn/Medium) | ⬜ pending | — |
 | M8 Hardening / "viable" gate | ⬜ pending | — |
@@ -32,10 +32,11 @@ validated. Next substantive milestone: **M7 (feedback + GraphRAG digest)**.
 
 ## Git / publish state
 
-- **Branch:** `feat/m6.5-source-breadth` (M6.5, not yet merged to `main`).
-- **`main`:** at the M5.5 tip; **2 commits ahead of `origin/main`** (M6 + M5.5 unpushed).
-- **To consolidate:** merge M6.5 → `main` (fast-forward), then `git push origin main` (publishes
-  M6 + M5.5 + M6.5). Push must run from Christo's machine (credentials are local).
+- **`main`:** at `51a7593`, **in sync with `origin/main`** (pushed 2026-06-22). The
+  `a567bfe..51a7593` push published M6 + M5.5 + M6.5 + this doc — origin had been sitting at the M5
+  stub. Backlog drained; nothing unpushed.
+- **Merged feature branches** (`feat/m6.5-source-breadth` and the earlier `feat/m*`) are now fully
+  contained in `main` and safe to prune.
 - ~127 backend tests + 9 frontend tests passing.
 
 ## Validated on real data (not just unit tests)
