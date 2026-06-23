@@ -10,9 +10,10 @@
 
 Phase 1 ("viable first phase") is ~85% through the milestone ladder. The pipeline runs end to end on
 real data; the cross-publisher convergence signal — the project's reason to exist — is validated.
-**M7 (feedback + GraphRAG digest) is code-complete and in review** (the core loop now closes); its
-real-data digest smoke is the one remaining acceptance step. Next substantive milestone: **M7.5
-(post generator)**.
+**M7 (feedback + GraphRAG digest) is complete and in review** — the core loop now closes, and the
+real-data smoke validated the LLM-composed digest (reads as decisions, honest noise count). The one
+deferred check (cross-publisher convergence) rides on the M8 broad-corpus run. Next substantive
+milestone: **M7.5 (post generator)**.
 
 ## Milestone ladder
 
@@ -27,7 +28,7 @@ real-data digest smoke is the one remaining acceptance step. Next substantive mi
 | M5.5 Convergence quality (hub-dampening) | ✅ done | `63390ce` |
 | M6 Dashboard + Cosmograph + real-data smoke | ✅ done | `e001f32` |
 | M6.5 Source breadth (GitHub intel + recency cap) | ✅ done, **merged + pushed** | `7a6fb9f` |
-| M7 Feedback + GraphRAG digest | 🔬 code-complete, **in review** (digest smoke pending) | `feat/m7-feedback-digest` |
+| M7 Feedback + GraphRAG digest | ✅ smoke done (LLM-composed digest validated), **in review** | `feat/m7-feedback-digest` |
 | M7.5 Post generator (LinkedIn/Medium) | ⏳ next | — |
 | M8 Hardening / "viable" gate | ⬜ pending | — |
 | M8.5 Read-only MCP server | ⬜ pending | — |
@@ -62,10 +63,11 @@ real-data digest smoke is the one remaining acceptance step. Next substantive mi
 
 ## Open questions / carry-forwards
 
-- **M7 digest smoke pending** — code-complete + all tests green, but the real-data acceptance smoke
-  (does the digest read as decisions? is the weak-signals section the cross-publisher convergence?)
-  needs a corpus + Neo4j + a real key. No corpus exists, so it implies a fresh ~$15 ingest; Neo4j
-  port is currently held by another project's `za-corruption-neo4j-1` container.
+- **M7 cross-publisher convergence — pending the M8 broad run.** The smoke validated the digest end
+  to end and the LLM-composed narrative reads as decisions (see [`m7-digest-notes.md`](m7-digest-notes.md));
+  a persistent dev corpus lives at `data/dev_corpus.db` (gitignored). The one deferred check is
+  weak-signal *convergence*, which needs a corpus with publisher overlap — re-confirm on M8's broad
+  registry run (M6.5 already proved convergence fires there). API credits are live again.
 - **Feedback rule is latest-action-wins** — transparent and explainable; revisit if a cumulative
   model is ever wanted (out of scope now).
 - **Decouple `github_advisories` from the general recency cap** — Early Warning shouldn't expire in

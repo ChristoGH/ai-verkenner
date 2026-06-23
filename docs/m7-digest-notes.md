@@ -23,6 +23,30 @@ Pipeline: `python -m app.cli run` → `python -m app.cli digest --days 7`.
 (VentureBeat had nothing inside the 7-day window). Recency cap bounded the feeds (Ars 20→8, Reg
 50→8). **22 of 24 events were enriched by real Opus**; the last 2 fell back (see the credit finding).
 
+## Update — credited re-run ✅ (the composed digest is now validated)
+
+After credits were topped up, the derived stores were rebuilt from the *same persisted corpus* for
+free (`reindex` + `graph-reindex`, no LLM) and the digest was re-composed: **`method=llm`,
+`graphrag=True`** (digest id 2). The single Opus composition call succeeded — so M7's previously
+credit-blocked item (the LLM-*composed* narrative) is now confirmed. It reads as **decisions, not
+links**, and notably is *honest about the thin corpus on its own*:
+
+- **Synthesised** exec summary: "A quiet week with no urgent action required… the two items worth
+  your time are both about agentic reliability and vendor cost stability."
+- **Decisions:** "check whether your cloud-LLM layer touches this SDK; treat current pricing as
+  unstable" / a concrete experiment: "Prototype a minimal state ledger… persist observed
+  facts/IDs/constraints in SQLite (or Neo4j)… add a pre-call policy check that blocks state-violating
+  tool calls."
+- **Connection to the user's work:** it reframes Brazil's rogue national-alert story as a design
+  lesson *because AI Verkenner is itself an early-warning/alert system*.
+- **Honest about the weak corpus:** "the items routed here this week are all archive-class with
+  relevance 0–1, so there is no genuine horizon signal to track" — the model itself flags the
+  no-convergence situation, and down-weights an off-topic paper to "awareness only."
+
+This upgrades Q1 below to a clear ✅. The only item still pending is Q2 (cross-publisher convergence),
+which needs the broad M8 corpus — the LLM digest's own "no genuine horizon signal" note corroborates
+that the thin 4-feed slice simply had no publisher overlap this week.
+
 ## ⚠️ Headline finding: the Anthropic API account is out of credits
 
 Mid-run the API began returning `400 … "Your credit balance is too low to access the Anthropic
@@ -39,7 +63,7 @@ degrade-don't-crash invariant under a *real* failure:
 produced is the structured fallback render. Add credits to validate the composed prose (and the
 broad M8 run).
 
-## Q1 — Does it read as decisions, not links? ✅ at the item level; ⚠️ not yet as a composed narrative
+## Q1 — Does it read as decisions, not links? ✅ confirmed (item-level *and* composed narrative — see the credited re-run above)
 
 Where real Opus enrichment ran, the item-level output is genuinely decision-oriented and **clearly
 steered by `docs/USER_CONTEXT.md`**:
@@ -97,9 +121,10 @@ arXiv → Research radar; the Anthropic Agent-SDK item → Tool changes; breache
 The M7 machinery is **wired and proven end-to-end on real data**: feedback ranking + the GraphRAG
 digest (retrieve + expand + compose-or-fallback) generate over a real, persistent, mostly-Opus-
 enriched corpus, with honest noise accounting and correct degrade behaviour under two genuine
-failures. **Two things are explicitly deferred to a credited M8 broad run:** (1) the LLM-*composed*
-narrative digest (blocked by the credit limit), and (2) cross-publisher weak-signal convergence
-(needs a corpus with publisher overlap). Both are configuration/credit/corpus matters, not code.
+failures. After credits were restored, the **LLM-composed narrative digest is validated** (it reads
+as decisions, connects to the user's work, and is honest about a thin corpus). **One item remains for
+the M8 broad run:** cross-publisher weak-signal convergence — it needs a corpus with publisher
+overlap (M6.5 already proved it fires there). That is a corpus matter, not code.
 
 ## Teardown
 
