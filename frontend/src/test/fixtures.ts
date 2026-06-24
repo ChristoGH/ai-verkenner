@@ -1,6 +1,7 @@
 import type { Item } from "@/api/items";
 import type { HorizonItem } from "@/api/horizon";
 import type { GraphData } from "@/api/graph";
+import type { Digest, DigestSummary } from "@/api/digests";
 
 export const sampleItem: Item = {
   id: "1",
@@ -36,6 +37,24 @@ export const sampleHorizonItem: HorizonItem = {
   convergence: 5,
   graph_score: 5.8,
   contributing_sources: ["arXiv cs.CL", "Simon Willison", "LangChain Blog"],
+};
+
+export const sampleDigestSummary: DigestSummary = {
+  id: 1,
+  period_start: "2026-06-15T00:00:00+00:00",
+  period_end: "2026-06-22T00:00:00+00:00",
+  generated_at: "2026-06-22T09:00:00+00:00",
+  method: "llm",
+  item_count: 4,
+  noise_count: 2,
+  graphrag: true,
+};
+
+export const sampleDigest: Digest = {
+  ...sampleDigestSummary,
+  content_md:
+    "# Weekly digest — 2026-06-15 → 2026-06-22\n\n## Weak signals\n- RAG converging across sources.\n",
+  event_ids: [1, 2, 3, 4],
 };
 
 export const sampleGraph: GraphData = {

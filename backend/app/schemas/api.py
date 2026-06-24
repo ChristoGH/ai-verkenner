@@ -75,3 +75,38 @@ class GraphOut(BaseModel):
 class HorizonOut(BaseModel):
     items: list[HorizonItemOut]
     graph_available: bool = True
+
+
+class FeedbackIn(BaseModel):
+    """The body of POST /items/{id}/feedback — the action the user took (M7)."""
+
+    action: str  # useful | not_useful | save | ignore (validated against scoring.feedback)
+
+
+class FeedbackOut(BaseModel):
+    """The persisted feedback record (M7)."""
+
+    id: int
+    event_id: int
+    action: str
+    created_at: str
+
+
+class DigestSummaryOut(BaseModel):
+    """One row in GET /digests — enough to list and pick a digest (M7)."""
+
+    id: int
+    period_start: str | None
+    period_end: str | None
+    generated_at: str
+    method: str            # "llm" | "fallback"
+    item_count: int        # Events considered for the body
+    noise_count: int       # archived / high-hype Events excluded (honest count)
+    graphrag: bool         # whether Qdrant-retrieve / Neo4j-expand actually ran
+
+
+class DigestOut(DigestSummaryOut):
+    """A full digest from GET /digests/{id} — the rendered briefing plus referenced events."""
+
+    content_md: str
+    event_ids: list[int]

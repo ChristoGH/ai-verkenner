@@ -8,9 +8,12 @@
 
 ## One-line status
 
-Phase 1 ("viable first phase") is ~75% through the milestone ladder. The pipeline runs end to end
-on real data; the cross-publisher convergence signal — the project's reason to exist — is
-validated. Next substantive milestone: **M7 (feedback + GraphRAG digest)**.
+Phase 1 ("viable first phase") is ~85% through the milestone ladder. The pipeline runs end to end on
+real data; the cross-publisher convergence signal — the project's reason to exist — is validated.
+**M7 (feedback + GraphRAG digest) is complete and in review** — the core loop now closes, and the
+real-data smoke validated the LLM-composed digest (reads as decisions, honest noise count). The one
+deferred check (cross-publisher convergence) rides on the M8 broad-corpus run. Next substantive
+milestone: **M7.5 (post generator)**.
 
 ## Milestone ladder
 
@@ -25,19 +28,19 @@ validated. Next substantive milestone: **M7 (feedback + GraphRAG digest)**.
 | M5.5 Convergence quality (hub-dampening) | ✅ done | `63390ce` |
 | M6 Dashboard + Cosmograph + real-data smoke | ✅ done | `e001f32` |
 | M6.5 Source breadth (GitHub intel + recency cap) | ✅ done, **merged + pushed** | `7a6fb9f` |
-| M7 Feedback + GraphRAG digest | ⏳ next | — |
-| M7.5 Post generator (LinkedIn/Medium) | ⬜ pending | — |
+| M7 Feedback + GraphRAG digest | ✅ smoke done (LLM-composed digest validated), **in review** | `feat/m7-feedback-digest` |
+| M7.5 Post generator (LinkedIn/Medium) | ⏳ next | — |
 | M8 Hardening / "viable" gate | ⬜ pending | — |
 | M8.5 Read-only MCP server | ⬜ pending | — |
 
 ## Git / publish state
 
-- **`main`:** at `51a7593`, **in sync with `origin/main`** (pushed 2026-06-22). The
-  `a567bfe..51a7593` push published M6 + M5.5 + M6.5 + this doc — origin had been sitting at the M5
-  stub. Backlog drained; nothing unpushed.
-- **Merged feature branches** (`feat/m6.5-source-breadth` and the earlier `feat/m*`) are now fully
+- **`main`:** published to `origin/main` through the M6.5 consolidation (`a04596a`). M7 work is on
+  the unmerged branch **`feat/m7-feedback-digest`** (off `main`); do not merge — it ends at the
+  review gate.
+- **Merged feature branches** (`feat/m6.5-source-breadth` and the earlier `feat/m*`) are fully
   contained in `main` and safe to prune.
-- ~127 backend tests + 9 frontend tests passing.
+- **146 backend tests + 10 frontend tests** passing (M7 added feedback + digest coverage).
 
 ## Validated on real data (not just unit tests)
 
@@ -60,15 +63,24 @@ validated. Next substantive milestone: **M7 (feedback + GraphRAG digest)**.
 
 ## Open questions / carry-forwards
 
+- **M7 cross-publisher convergence — pending the M8 broad run.** The smoke validated the digest end
+  to end and the LLM-composed narrative reads as decisions (see [`m7-digest-notes.md`](m7-digest-notes.md));
+  a persistent dev corpus lives at `data/dev_corpus.db` (gitignored). The one deferred check is
+  weak-signal *convergence*, which needs a corpus with publisher overlap — re-confirm on M8's broad
+  registry run (M6.5 already proved convergence fires there). API credits are live again.
+- **Feedback rule is latest-action-wins** — transparent and explainable; revisit if a cumulative
+  model is ever wanted (out of scope now).
 - **Decouple `github_advisories` from the general recency cap** — Early Warning shouldn't expire in
   7 days (M6.5 finding).
 - **Star-velocity is seeded but unobserved** — needs a second run to emit deltas.
 - **`USER_CONTEXT` is generic** — could be seeded from the Obsidian vault (modest near-term value;
   see the vault assessment) — pragmatic v1 is a hand-written context paragraph.
-- **Cost:** ~$15 of Opus per ~120-event run, roughly linear in events.
+- **Cost:** ~$15 of Opus per ~120-event run (enrichment); a digest is one cheap composition call.
 
 ## Next step (recommended)
 
-1. **Consolidate:** merge M6.5 → `main`, push `main`. (Drains the stacked-branch backlog.)
-2. **M7 — feedback + GraphRAG digest.** The convergence signal is now good enough to build the
-   first real published-output-adjacent deliverable on.
+1. **Run the M7 digest smoke** (acceptance gate) — bring up the stores + a corpus + a real key,
+   generate one digest, and record `docs/m7-digest-notes.md` (decisions-not-links? weak-signals =
+   cross-publisher convergence? honest noise count?). Then merge `feat/m7-feedback-digest`.
+2. **M7.5 — post generator (LinkedIn + Medium).** Project the weekly intelligence (Weak Signal of
+   the Week + Noise Report) into human-approved drafts; draft-only, no auto-posting.

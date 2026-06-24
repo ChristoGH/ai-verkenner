@@ -1,5 +1,7 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Network } from "lucide-react";
 import type { Item, PriorityClass } from "@/api/items";
+import { type FeedbackAction, postFeedback } from "@/api/feedback";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -23,11 +25,18 @@ const PRIORITY_VARIANT: Record<PriorityClass, BadgeProps["variant"]> = {
  *
  * Invariants made visible: SOURCE FACT (summary) is kept distinct from INTERPRETATION
  * (why-it-matters / recommended action); the five scores show with hype labelled inverted; the
- * source link is always shown; and when the graph signal fired, its `why` is surfaced. Feedback
- * buttons render but are inert until M7.
+ * source link is always shown; and when the graph signal fired, its `why` is surfaced. The feedback
+ * buttons (M7) POST to /items/{id}/feedback and refresh the ranked feed (an `ignore`d item leaves
+ * the default feed; useful/save lift, not_useful demotes — all within the priority class).
  */
 export function ItemCard({ item }: { item: Item }) {
   const { scores } = item;
+  const queryClient = useQueryClient();
+  const feedback = useMutation({
+    mutationFn: (action: FeedbackAction) => postFeedback(item.id, action),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["items"] }),
+  });
+  const submitted = feedback.isSuccess ? feedback.variables : undefined;
   return (
     <Card>
       <CardHeader>
@@ -89,20 +98,45 @@ export function ItemCard({ item }: { item: Item }) {
         </a>
       </CardContent>
 
-      <CardFooter className="flex flex-wrap gap-2">
-        {/* Feedback buttons — inert placeholders; wired in Task 007 (M7). */}
-        <Button size="sm" variant="outline" disabled>
+      <CardFooter className="flex flex-wrap items-center gap-2">
+        {/* Feedback buttons (M7) — POST /items/{id}/feedback, then refresh the ranked feed. */}
+        <Button
+          size="sm"
+          variant={submitted === "useful" ? "default" : "outline"}
+          disabled={feedback.isPending}
+          onClick={() => feedback.mutate("useful")}
+        >
           Useful
         </Button>
-        <Button size="sm" variant="outline" disabled>
+        <Button
+          size="sm"
+          variant={submitted === "not_useful" ? "default" : "outline"}
+          disabled={feedback.isPending}
+          onClick={() => feedback.mutate("not_useful")}
+        >
           Not useful
         </Button>
-        <Button size="sm" variant="outline" disabled>
+        <Button
+          size="sm"
+          variant={submitted === "save" ? "default" : "outline"}
+          disabled={feedback.isPending}
+          onClick={() => feedback.mutate("save")}
+        >
           Save
         </Button>
-        <Button size="sm" variant="ghost" disabled>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={feedback.isPending}
+          onClick={() => feedback.mutate("ignore")}
+        >
           Ignore
         </Button>
+        {feedback.isError ? (
+          <span className="text-xs text-red-600">Couldn’t save feedback.</span>
+        ) : submitted ? (
+          <span className="text-xs text-muted-foreground">Saved “{submitted}”.</span>
+        ) : null}
       </CardFooter>
     </Card>
   );

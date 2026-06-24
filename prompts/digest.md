@@ -12,11 +12,17 @@ needs action.
 
 ## Inputs (provided by the caller)
 
+The caller has already done retrieval and scoring (M7 GraphRAG: embed the period's themes → Qdrant
+retrieve → Neo4j expand). You receive items **pre-selected and pre-bucketed into the sections
+below** — compose decisions over them; do not invent items, re-score, or re-fetch.
+
 - `period` (the date range covered)
-- `items` — the week's enriched items, each with `title`, `source_url`, `published_at`,
-  `category`, `tags`, the five `scores`, `priority_class`, `summary`, `why_it_matters`,
-  `connection_to_user_work`, `recommended_action`, and any weak-signal annotation.
-- `user_context` (the user's stack, projects, and interests)
+- `user_context` (the user's stack, projects, and interests — frame "connection to my work" with it)
+- Per-section items, each with `title`, `source_url`, the five `scores`, `priority_class`,
+  `summary` (FACT), `why_it_matters` / `recommended_action` (INTERPRETATION),
+  `connection_to_user_work`, and — for weak signals — the **convergence evidence** (the driving
+  entity and its contributing independent sources).
+- `noise_count` — items already excluded as archived / high-hype.
 
 ## Hard rules
 
