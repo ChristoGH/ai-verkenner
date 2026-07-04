@@ -103,6 +103,10 @@ class DigestData:
     opportunities: tuple[DigestItem, ...]
     suggested_experiments: tuple[DigestItem, ...]
     referenced_event_ids: tuple[int, ...]
+    # The actual demoted items behind `noise_count` — archived / high-hype (loudest-but-emptiest).
+    # Kept so the M7.5 Noise Report can name them, not just count them. Same `is_noise` predicate,
+    # same hype polarity — not a ranking change.
+    noise: tuple[DigestItem, ...]
 
 
 def _representative(session: Session, enriched: EnrichedItem) -> RawItem | None:
@@ -247,6 +251,7 @@ def build_sections(
         opportunities=opportunities,
         suggested_experiments=suggested_experiments,
         referenced_event_ids=tuple(referenced),
+        noise=tuple(noise),
     )
 
 
