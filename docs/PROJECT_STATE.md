@@ -4,16 +4,18 @@
 > each review gate. For the *roadmap* (what each milestone delivers) see
 > [`PHASE_1_PLAN.md`](PHASE_1_PLAN.md); this file is the *current state* only.
 
-**Last updated:** 2026-06-22
+**Last updated:** 2026-07-06
 
 ## One-line status
 
-Phase 1 ("viable first phase") is ~85% through the milestone ladder. The pipeline runs end to end on
+Phase 1 ("viable first phase") is ~90% through the milestone ladder. The pipeline runs end to end on
 real data; the cross-publisher convergence signal — the project's reason to exist — is validated.
-**M7 (feedback + GraphRAG digest) is complete and in review** — the core loop now closes, and the
-real-data smoke validated the LLM-composed digest (reads as decisions, honest noise count). The one
-deferred check (cross-publisher convergence) rides on the M8 broad-corpus run. Next substantive
-milestone: **M7.5 (post generator)**.
+M7 (feedback + GraphRAG digest) is merged to `main`. **M7.5 (post generator) is built and in review**
+on `feat/m7.5-post-generator`: a weekly digest projects into human-approved DRAFTS — Weak Signal of
+the Week + Noise Report — for **X, LinkedIn, and Medium** (draft-only, no auto-posting), also written
+into the Obsidian vault (create-only). The one remaining spend — the M7.5/M8 broad-corpus run that
+re-confirms cross-publisher convergence in a real digest — is **deferred** (see the carry-forwards).
+Next substantive milestone after review: **M8 (hardening / "viable" gate)**.
 
 ## Milestone ladder
 
@@ -28,19 +30,19 @@ milestone: **M7.5 (post generator)**.
 | M5.5 Convergence quality (hub-dampening) | ✅ done | `63390ce` |
 | M6 Dashboard + Cosmograph + real-data smoke | ✅ done | `e001f32` |
 | M6.5 Source breadth (GitHub intel + recency cap) | ✅ done, **merged + pushed** | `7a6fb9f` |
-| M7 Feedback + GraphRAG digest | ✅ smoke done (LLM-composed digest validated), **in review** | `feat/m7-feedback-digest` |
-| M7.5 Post generator (LinkedIn/Medium) | ⏳ next | — |
+| M7 Feedback + GraphRAG digest | ✅ done, **merged** | `ac9219e` |
+| M7.5 Post generator (X/LinkedIn/Medium) | ✅ built (offline-green), **in review**; broad run deferred | `feat/m7.5-post-generator` |
 | M8 Hardening / "viable" gate | ⬜ pending | — |
 | M8.5 Read-only MCP server | ⬜ pending | — |
 
 ## Git / publish state
 
-- **`main`:** published to `origin/main` through the M6.5 consolidation (`a04596a`). M7 work is on
-  the unmerged branch **`feat/m7-feedback-digest`** (off `main`); do not merge — it ends at the
-  review gate.
-- **Merged feature branches** (`feat/m6.5-source-breadth` and the earlier `feat/m*`) are fully
-  contained in `main` and safe to prune.
-- **146 backend tests + 10 frontend tests** passing (M7 added feedback + digest coverage).
+- **`main`:** M7 is merged (`ac9219e`, PR #1). M7.5 work is on the unmerged branch
+  **`feat/m7.5-post-generator`** (off `main`); do not merge — it ends at the review gate.
+- **Merged feature branches** (`feat/m7-feedback-digest`, `feat/m6.5-source-breadth`, and the earlier
+  `feat/m*`) are fully contained in `main` and safe to prune.
+- **168 backend tests (+1 skipped) + 10 frontend tests** passing (M7.5 added 24 post-generator tests;
+  the skip is the optional matplotlib render path).
 
 ## Validated on real data (not just unit tests)
 
@@ -63,11 +65,13 @@ milestone: **M7.5 (post generator)**.
 
 ## Open questions / carry-forwards
 
-- **M7 cross-publisher convergence — pending the M8 broad run.** The smoke validated the digest end
-  to end and the LLM-composed narrative reads as decisions (see [`m7-digest-notes.md`](m7-digest-notes.md));
-  a persistent dev corpus lives at `data/dev_corpus.db` (gitignored). The one deferred check is
-  weak-signal *convergence*, which needs a corpus with publisher overlap — re-confirm on M8's broad
-  registry run (M6.5 already proved convergence fires there). API credits are live again.
+- **Cross-publisher convergence in a real digest — still deferred to the broad run.** M7.5's code is
+  proven on a synthetic-convergence fixture *and* on the M7 seed (convergence fires, a real Weak
+  Signal of the Week is produced), but the **real broad-corpus run** (28 sources into
+  `data/dev_corpus.db`, ~$20–30, then `digest` + `posts`) that re-confirms it end-to-end has **not**
+  been run yet — see [`m7-digest-notes.md`](m7-digest-notes.md) Q2. Blocked on (a) local disk (the
+  host is at ~100%) and (b) an explicit go-ahead for the spend + isolated Docker stores. Record it in
+  `docs/m7.5-broad-notes.md` when run.
 - **Feedback rule is latest-action-wins** — transparent and explainable; revisit if a cumulative
   model is ever wanted (out of scope now).
 - **Decouple `github_advisories` from the general recency cap** — Early Warning shouldn't expire in
@@ -79,8 +83,10 @@ milestone: **M7.5 (post generator)**.
 
 ## Next step (recommended)
 
-1. **Run the M7 digest smoke** (acceptance gate) — bring up the stores + a corpus + a real key,
-   generate one digest, and record `docs/m7-digest-notes.md` (decisions-not-links? weak-signals =
-   cross-publisher convergence? honest noise count?). Then merge `feat/m7-feedback-digest`.
-2. **M7.5 — post generator (LinkedIn + Medium).** Project the weekly intelligence (Weak Signal of
-   the Week + Noise Report) into human-approved drafts; draft-only, no auto-posting.
+1. **Review M7.5** (`feat/m7.5-post-generator`) at the gate — the offline generator, fixtures, image
+   placeholder, create-only vault writer, and the `posts` CLI. Then merge.
+2. **M7.5/M8 broad run (the one remaining spend).** Free up disk, bring up isolated stores on
+   non-conflicting ports (leave `za-corruption-neo4j-1` alone), ingest the full 28-source
+   `sources.yaml` into `data/dev_corpus.db`, then `digest` + `posts`; record `docs/m7.5-broad-notes.md`
+   (did cross-publisher convergence fire? paste the X + LinkedIn + Medium drafts; flag cost + window).
+3. **M8 — hardening / "viable" gate.**

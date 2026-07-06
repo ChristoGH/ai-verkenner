@@ -5,7 +5,7 @@ Medium). Draft-only and human-in-the-loop: this package never posts, calls a soc
 the network — publishing is a manual step (see docs/SIGNATURE_OUTPUTS.md §3, task 009).
 """
 
-from app.posts.generator import PLACEHOLDER_IMAGE_REF, generate_posts
+from app.posts.generator import PLACEHOLDER_IMAGE_REF, generate_posts, weak_cluster
 from app.posts.model import (
     PIECE_NOISE_REPORT,
     PIECE_WEAK_SIGNAL,
@@ -18,6 +18,7 @@ from app.posts.model import (
 
 __all__ = [
     "generate_posts",
+    "weak_cluster",
     "PostBundle",
     "Draft",
     "PLACEHOLDER_IMAGE_REF",

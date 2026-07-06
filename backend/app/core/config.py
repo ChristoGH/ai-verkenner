@@ -130,5 +130,13 @@ class Settings:
         # How many semantic neighbours the GraphRAG retrieve step pulls for the theme query.
         self.digest_retrieve_limit: int = int(os.getenv("DIGEST_RETRIEVE_LIMIT", "40"))
 
+        # Post generator (M7.5). `posts_output_dir` is the git-ignored working area for generated
+        # drafts. `vault_dir` (from VAULT_DIR) is the user's Obsidian vault — when set, drafts are
+        # ALSO written as new notes under <vault>/00-Inbox/ (create-only; never modify/delete). It is
+        # None unless configured; the `posts --vault-dir` flag overrides it per-run.
+        self.posts_output_dir: Path = _resolve(os.getenv("POSTS_OUTPUT_DIR", "outputs/posts"))
+        _vault = os.getenv("VAULT_DIR")
+        self.vault_dir: Path | None = _resolve(_vault) if _vault else None
+
 
 settings = Settings()

@@ -24,7 +24,7 @@ from sqlmodel import Session, select
 from app.api import dashboard_service
 from app.core.config import settings
 from app.digests import render, retrieve
-from app.digests.sections import HORIZON_CLASSES, build_items, build_sections
+from app.digests.sections import HORIZON_CLASSES, DigestData, build_items, build_sections
 from app.embeddings import Embedder
 from app.enrichment.prompts import load_template
 from app.enrichment.provider import LLMProvider
@@ -73,10 +73,9 @@ def _select_period(
     return selected, (min(known) if known else None), (max(known) if known else None)
 
 
-def generate_digest(
+def build_digest_data(
     session: Session,
     *,
-    provider: LLMProvider | None = None,
     embedder: Embedder | None = None,
     qdrant_client=None,
     graph_store: GraphStore | None = None,
@@ -86,8 +85,14 @@ def generate_digest(
     high_hype: int | None = None,
     retrieve_limit: int | None = None,
     now: datetime | None = None,
-) -> Digest:
-    """Generate, persist, and return one decision-oriented digest over the current corpus."""
+) -> DigestData:
+    """Build the structured `DigestData` for the current corpus — the deterministic, LLM-free
+    backbone behind both the rendered digest and the M7.5 post drafts.
+
+    This runs the same GraphRAG selection the digest uses (Qdrant retrieve → Neo4j expand → section
+    routing) but stops short of the composition LLM call, so it is free to call. Reused by
+    `generate_digest` and by the `posts` CLI (which projects the same intelligence into drafts).
+    """
     now = now or datetime.now(timezone.utc)
     user_context = settings.user_context if user_context is None else user_context
     period_days = settings.digest_period_days if period_days is None else period_days
@@ -114,23 +119,48 @@ def generate_digest(
     ordered = sorted(period_rows, key=lambda r: -(relevance or {}).get(r.event_id, 0.0))
 
     items = build_items(session, ordered, signals)
-    data = build_sections(
+    return build_sections(
         items, signals,
         high_hype=high_hype, section_limit=section_limit, graphrag=graphrag,
         period_start=period_start, period_end=period_end,
     )
 
+
+def generate_digest(
+    session: Session,
+    *,
+    provider: LLMProvider | None = None,
+    embedder: Embedder | None = None,
+    qdrant_client=None,
+    graph_store: GraphStore | None = None,
+    user_context: str | None = None,
+    period_days: int | None = None,
+    section_limit: int | None = None,
+    high_hype: int | None = None,
+    retrieve_limit: int | None = None,
+    now: datetime | None = None,
+) -> Digest:
+    """Generate, persist, and return one decision-oriented digest over the current corpus."""
+    now = now or datetime.now(timezone.utc)
+    user_context = settings.user_context if user_context is None else user_context
+
+    data = build_digest_data(
+        session, embedder=embedder, qdrant_client=qdrant_client, graph_store=graph_store,
+        user_context=user_context, period_days=period_days, section_limit=section_limit,
+        high_hype=high_hype, retrieve_limit=retrieve_limit, now=now,
+    )
+
     content, method = _compose(provider, data, user_context)
 
     digest = Digest(
-        period_start=period_start,
-        period_end=period_end,
+        period_start=data.period_start,
+        period_end=data.period_end,
         generated_at=now,
         content_md=content,
         method=method,
         item_count=data.item_count,
         noise_count=data.noise_count,
-        graphrag=graphrag,
+        graphrag=data.graphrag,
         event_ids=list(data.referenced_event_ids),
     )
     session.add(digest)
@@ -139,7 +169,7 @@ def generate_digest(
     logger.info(
         "generated digest %s via %s: events=%d body=%d noise=%d weak=%d graphrag=%s",
         digest.id, method, data.total_events, data.item_count, data.noise_count,
-        len(data.weak_signals), graphrag,
+        len(data.weak_signals), data.graphrag,
     )
     return digest
 
@@ -161,4 +191,4 @@ def _compose(provider: LLMProvider | None, data, user_context: str) -> tuple[str
 
 
 # Re-export for callers/tests that want the quadrant constant alongside the generator.
-__all__ = ["generate_digest", "HORIZON_CLASSES"]
+__all__ = ["generate_digest", "build_digest_data", "DigestData", "HORIZON_CLASSES"]

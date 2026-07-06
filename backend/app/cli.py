@@ -7,27 +7,37 @@
     python -m app.cli graph-reindex      # rebuild the Neo4j graph purely from SQLite
     python -m app.cli digest             # compose a GraphRAG weekly digest over enriched Events (M7)
     python -m app.cli digest --days 14   # widen the digest window (0 = the whole corpus)
+    python -m app.cli posts              # project the latest digest into X/LinkedIn/Medium DRAFTS (M7.5)
+    python -m app.cli posts --digest 3 --vault-dir ~/vault   # a specific digest + write vault notes
 
 Uses the configured DATABASE_URL, QDRANT_URL, NEO4J_*, embedder, and LLM provider. With no API key
 the run still enriches via the rule-based fallback; with Neo4j down the projection degrades and the
-run still completes.
+run still completes. `posts` is LLM-free and never posts — it writes draft files only.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+from datetime import datetime, timezone
+from pathlib import Path
 
+from app.core.config import settings
 from app.db import qdrant
 from app.db.neo4j import get_driver
 from app.db.sqlite import get_session, init_db
-from app.digests import generate_digest
+from app.digests import build_digest_data, generate_digest
 from app.embeddings import get_embedder
 from app.enrichment import Enricher, get_provider
 from app.graph import Neo4jGraphStore, graph_reindex
+from app.models import Digest
+from app.posts import generate_posts, weak_cluster
+from app.posts.image import export_convergence_image
+from app.posts.writer import write_outputs, write_vault_notes
 from app.sources.registry import load_sources_from_settings
 from app.storage.dedup import reindex
 from app.storage.pipeline import ingest_and_store
+from sqlmodel import select
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +115,62 @@ def _cmd_digest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_digest(session, which: str) -> Digest | None:
+    """Resolve `--digest`: 'latest' (newest by generated_at) or a numeric id. None if not found."""
+    if which == "latest":
+        return session.exec(select(Digest).order_by(Digest.generated_at.desc())).first()
+    try:
+        digest_id = int(which)
+    except ValueError:
+        return None
+    return session.get(Digest, digest_id)
+
+
+def _cmd_posts(args: argparse.Namespace) -> int:
+    from app.db import neo4j
+
+    init_db()
+    embedder = get_embedder()
+    client = qdrant.get_client()
+    # Degrade-don't-crash: skip the Neo4j expand when the graph is unreachable (weak signals then
+    # fall back to salience — no convergence claimed).
+    graph_store = Neo4jGraphStore(get_driver()) if neo4j.ping().ok else None
+    period_days = None if args.days is None else args.days
+    now = datetime.now(timezone.utc)
+
+    with get_session() as session:
+        digest = _load_digest(session, args.digest)
+        if digest is None:
+            print(f"posts: no digest for --digest {args.digest!r}; "
+                  f"run `python -m app.cli digest` first")
+            return 1
+        # Re-derive the structured digest (deterministic, LLM-free) and project it into drafts.
+        data = build_digest_data(
+            session, embedder=embedder, qdrant_client=client,
+            graph_store=graph_store, period_days=period_days, now=now,
+        )
+        cluster, converged = weak_cluster(data)
+        out_dir = settings.posts_output_dir
+        image = export_convergence_image(
+            cluster, out_dir / f"{now.date().isoformat()}-weak-signal-cluster.png"
+        )
+        bundle = generate_posts(data, digest_id=digest.id, generated_at=now, image_ref=image.ref)
+        out_paths = write_outputs(bundle, out_dir)
+
+        vault_dir = Path(args.vault_dir) if args.vault_dir else settings.vault_dir
+        vault_paths = write_vault_notes(bundle, vault_dir) if vault_dir else []
+
+    img_kind = "placeholder (screenshot Cosmograph)" if image.is_placeholder else str(image.path)
+    print(
+        f"posts: digest={digest.id} convergence={converged} drafts={len(bundle.drafts)} "
+        f"image={img_kind} out_dir={out_dir}"
+    )
+    print(f"  wrote {len(out_paths)} draft file(s); "
+          + (f"created {len(vault_paths)} vault note(s) in {vault_dir}/00-Inbox"
+             if vault_paths else "no vault dir configured (set --vault-dir or VAULT_DIR)"))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="app.cli", description="AI Verkenner store/enrich/graph")
@@ -123,6 +189,21 @@ def main(argv: list[str] | None = None) -> int:
         help="digest window in days (0 = whole corpus; default from DIGEST_PERIOD_DAYS)",
     )
     digest_parser.set_defaults(func=_cmd_digest)
+    posts_parser = sub.add_parser(
+        "posts", help="project a digest into X/LinkedIn/Medium DRAFTS (M7.5; never posts)"
+    )
+    posts_parser.add_argument(
+        "--digest", default="latest", help="digest id or 'latest' (default: latest)"
+    )
+    posts_parser.add_argument(
+        "--vault-dir", default=None,
+        help="Obsidian vault dir; also create notes in <vault>/00-Inbox/ (default from VAULT_DIR)",
+    )
+    posts_parser.add_argument(
+        "--days", type=int, default=None,
+        help="re-derive window in days (0 = whole corpus; default from DIGEST_PERIOD_DAYS)",
+    )
+    posts_parser.set_defaults(func=_cmd_posts)
 
     args = parser.parse_args(argv)
     return args.func(args)

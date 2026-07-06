@@ -125,7 +125,7 @@ def _theme(items: tuple[DigestItem, ...]) -> str:
 # ----------------------------------------------------------------------------------------------- #
 
 
-def _weak_cluster(data: DigestData) -> tuple[tuple[DigestItem, ...], bool]:
+def weak_cluster(data: DigestData) -> tuple[tuple[DigestItem, ...], bool]:
     """The items driving the weak-signal piece + whether a genuine convergence fired.
 
     `convergence > 0` is set only when the hub-dampened contribution fired (>= GRAPH_MIN_SOURCES
@@ -429,7 +429,7 @@ def generate_posts(
     image_ref = image_ref or PLACEHOLDER_IMAGE_REF
     period = _period_label(data.period_start, data.period_end)
 
-    cluster, converged = _weak_cluster(data)
+    cluster, converged = weak_cluster(data)
     noise, _hh = _noise_ranked(data, high_hype)
 
     drafts = (
@@ -450,4 +450,5 @@ def generate_posts(
     )
 
 
-__all__ = ["generate_posts", "PostBundle", "Draft", "PLACEHOLDER_IMAGE_REF", "VAULT_BACKLINK"]
+__all__ = ["generate_posts", "weak_cluster", "PostBundle", "Draft",
+           "PLACEHOLDER_IMAGE_REF", "VAULT_BACKLINK"]
