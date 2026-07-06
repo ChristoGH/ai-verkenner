@@ -26,6 +26,9 @@ coverage/
 *.sqlite3
 data/*.db
 
+# ---- Generated post drafts (M7.5) — working area, not committed ----
+outputs/
+
 # ---- Env / secrets ----
 .env
 .env.*
