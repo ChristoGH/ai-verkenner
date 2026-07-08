@@ -1,0 +1,47 @@
+# M7.5 broad-run stores — SELF-CONTAINED, isolated, on NON-CONFLICTING ports.
+#
+# Standalone (does NOT extend docker-compose.yml, so the default 6333/7474/7687 mappings can't leak
+# in and collide with other stacks). Isolated project name + volumes ⇒ it never touches
+# za-corruption-neo4j-1 or the trafficking-intel stack on the default ports. One-off broad run only
+# (docs/m7.5-broad-notes.md):
+#
+#   docker compose -p m75broad -f docker-compose.m75.yml up -d
+#   docker compose -p m75broad -f docker-compose.m75.yml down       # keep data (omit -v)
+#
+# Host ports: Qdrant 6335->6333, Neo4j bolt 7688->7687, Neo4j http 7475->7474.
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    ports:
+      - "6335:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  neo4j:
+    image: neo4j:5
+    restart: unless-stopped
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    environment:
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-verkenner_dev_pw}"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "512m"
+      NEO4J_server_memory_pagecache_size: "512m"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test:
+        ["CMD-SHELL",
+         "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-verkenner_dev_pw} 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  qdrant_data:
+  neo4j_data:
+  neo4j_logs:
