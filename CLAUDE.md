@@ -80,3 +80,11 @@ These hold across every feature, now and later:
   task file, and `docs/TECHNICAL_DESIGN.md` in the same change set.
 - **Clear structure over clever abstractions.** No abstraction before three real use cases.
   Prefer obvious, boring code that the next reader understands immediately.
+
+## Secrets
+Secrets are environment-injected by direnv from ~/.config/secrets/<repo>.env (values) via the committed .envrc (pointer, no values). Runbook: ~/.config/secrets/README.md.
+Agent rules:
+- NEVER read, print, echo, or log values of vars matching KEY|TOKEN|SECRET|WEBHOOK|PASSWORD. Names only: grep -oE '^[A-Za-z_]+=' <file>.
+- NEVER write secret values into files, code, or commits. Needed-but-missing var: add its NAME to .env.example and ask Christo.
+- Missing env var at runtime => the runbook's stale/missing-key playbook. No defaults, placeholders, or load_dotenv workarounds.
+- git commit always with -m. Never --no-verify.
