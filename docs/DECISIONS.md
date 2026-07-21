@@ -57,3 +57,27 @@ Entry template:
 **Decision.** (b) — smallest change that removes the calendar dependency; (c) rejected as a larger refactor with no task file calling for it. Changes: `tests/graph_helpers.py` and `tests/test_digest.py` `TS` → `now - 3 days`; `tests/posts_fixtures.py` `_BASE` → `now - 7 days` (its `+1/+3/+5` day offsets stay in the past). `tests/test_ingestion.py` now passes `max_age_days=0` (orchestrator treats `0` as "window disabled", `orchestrator.py:44`) so the isolation test exercises isolation, not the recency cap. Agent (auto).
 **Consequences.** Also fixed a latent bug in `posts_fixtures._item`: `_BASE.replace(day=_BASE.day + n)` raises `ValueError` when the offset crosses a month end — unreachable with a frozen 15 June base, reachable once `_BASE` moves. Now `_BASE + timedelta(days=n)`. **Test-only changes; no production code touched.** Suite on default settings: **168 passed, 1 skipped, 0 failed**; frontend **10 passed**.
 **Outcome.** —
+
+## D-006 · 2026-07-21 · Incident: broad run launched with the wrong CWD; ~15 enrichments billed to a stray DB
+
+**Context.** The resumed STEP 3 run was launched as `cd backend && python -m app.cli run`, following the recipe in `docs/m7.5-broad-notes.md`. `settings.database_url` is **`sqlite:///./data/dev_corpus.db` — a relative path** — so with cwd=`backend/` it resolved to `backend/data/dev_corpus.db`, an empty file, instead of the real corpus at repo-root `data/dev_corpus.db`.
+**Options.** (a) let the run finish and merge the stray DB; (b) kill immediately on detection.
+**Decision.** (b) — killed as soon as the corpus showed 97 still-unenriched while the enricher was actively logging successes. Agent (auto). The run had re-ingested 175 events from scratch and performed **15 `llm` enrichments** (~$3–5) that duplicated work already paid for.
+**Consequences.** **No data loss or corruption**: repo-root `data/dev_corpus.db` is untouched (199 events, 102 enriched, 97 unenriched). Wasted spend is bounded at 15 enrichments. A stray `backend/data/dev_corpus.db` now exists and should be deleted — pending Christo's confirmation, not removed unilaterally. **The runbook in `docs/m7.5-broad-notes.md` is wrong** and will re-trigger this for anyone who follows it: with a relative `DATABASE_URL` the CLI must run from the **repo root** (`PYTHONPATH=backend`), never from `backend/`. That doc needs fixing, but it is M7.5 status-adjacent so it is left for review.
+**Outcome.** —
+
+## D-007 · 2026-07-21 · Reversal of D-002: the restart did NOT kill the run (timezone error)
+
+**Context.** D-002 concluded a **system restart** ended the first broad run, from "last enrichment 07:41:36, boot 07:48:23". That comparison was invalid.
+**Options.** (a) let D-002 stand; (b) correct it once the unit mismatch surfaced.
+**Decision.** (b). The machine is **UTC+2 (SAST)** and the corpus stores **naive UTC** (the documented M4 convention, `app/graph/util.py`). `enriched_item.created_at` max of `07:41:36` is **UTC = 09:41 local**; `kern.boottime` `07:48:23` is **local**. D-002 compared a UTC timestamp to a local one and inverted the ordering: the run was still writing **~2 hours after** the restart, so the restart cannot have killed it. Corroborated by `data/dev_corpus.db` mtime of 09:41 **local**. Agent (auto).
+**Consequences.** **The cause of the first run's death is once again unknown.** It stopped at ~09:41 local, minutes before the prior session's artifacts stop (~09:48–09:49), which is consistent with **terminal HUP / session teardown** — Christo's original hypothesis, wrongly dismissed in D-002. The sleep and OOM findings in D-002 remain valid (0 sleep/wakes, no jetsam, no panic, ample Docker headroom); only the restart conclusion is withdrawn. Mitigation already applied: runs are launched detached via `nohup` + `caffeinate`, which survives session teardown. **Lesson: never compare a DB timestamp to a system timestamp without normalising the timezone first.**
+**Outcome.** —
+
+## D-008 · 2026-07-21 · Abort the resumed run on the first rule-based fallback, per instruction
+
+**Context.** Christo's brief: "Abort on rule-based fallback, as before." Event 209 fell back with `no valid JSON object found in output`.
+**Options.** (a) treat one malformed-JSON event as transient and continue — the LLM path was plainly healthy (107 `llm` successes); (b) honour the instruction literally and stop.
+**Decision.** (b) — stopped immediately. Reinterpreting an explicit user gate without asking would be a silent decision, and aborting is nearly free here because **enrichment is incremental**: everything already paid for is retained and the run resumes where it left off. Agent (auto).
+**Consequences.** Corpus at abort: **216 events, 110 enriched (107 `llm`, 3 `fallback`), 106 unenriched.** The unenriched count rose from 97 because ingestion added ~17 new events this run. Exactly **one** fallback occurred (event 209); the other two `fallback` rows date from 2026-06-22. This is a **per-event JSON parse failure, not systemic degradation** — materially different from the missing-API-key scenario the gate was written for. STEPS 2–3 (digest, posts) are **not** run, so the M7 Q2 convergence question remains unanswered. Needs Christo's ruling on whether isolated per-event fallbacks should abort or merely be logged.
+**Outcome.** —
