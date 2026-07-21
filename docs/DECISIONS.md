@@ -105,3 +105,19 @@ Entry template:
 **Decision.** (b), per Christo, plus `"cleanupPeriodDays": 3650`. Backup taken first at `~/.claude/settings.json.bak-20260721-111836`. Christo, 2026-07-21.
 **Consequences.** Validated with `jq`; all five original keys preserved (`model`, `enabledPlugins`, `extraKnownMarketplaces`, `effortLevel`, `agentPushNotifEnabled`) plus the new retention key. Outside this repo, so nothing committed.
 **Outcome.** Done.
+
+## D-012 · 2026-07-21 · Add `enrich --backfill` to drain orphaned Events
+
+**Context.** `app.cli run` enriched only 2 events on a 220-event corpus with 107 unenriched. `enrich_new_events(session, enricher, new_rows)` (`enricher.py:184-196`) derives its work list from the rows persisted **by that run**, so Events stranded by an interrupted run are unreachable by any later `run`. The brief's "app.cli run — remaining ~97 events" was therefore not achievable as written.
+**Options.** (a) new `enrich --backfill` subcommand; (b) a throwaway script; (c) author a task file first.
+**Decision.** (a), per Christo. Selects Events with no `EnrichedItem`, enriches via the existing `Enricher.enrich_event` — no new enrichment logic. Supports `--limit` (cost control) and `--dry-run`. Deliberately does **not** fetch, dedup, or project; it prints the `graph-reindex` follow-up so the newly enriched Events reach Neo4j and count towards convergence, reusing the sanctioned rebuild path rather than duplicating projection. Christo, 2026-07-21.
+**Consequences.** Production surface added with no task file — the same contract tension as D-009, on explicit instruction. Per-event isolation honours the fail-safe invariant: one failing Event is logged and skipped, never ending the backfill. 4 tests added (`tests/test_cli_enrich.py`), suite **174 passed, 1 skipped, 0 failed**. Dry run confirms 107 candidates.
+**Outcome.** —
+
+## D-013 · 2026-07-21 · Known defect: an interrupted run permanently orphans its unenriched Events
+
+**Context.** Root cause behind D-012. `ingest_and_store` persists items first, then enriches them; if the process dies mid-enrichment, everything past the interruption point is committed-but-unenriched, and the next run's work list contains only *its own* new rows — so the orphans are never revisited. This is exactly how ~97 Events became stranded.
+**Options.** (a) fix now by making the run's enrichment step sweep all unenriched Events; (b) log it and fix later under its own task file.
+**Decision.** (b), per Christo — (a) is a behavioural change to the core loop and belongs behind a task file. Christo, 2026-07-21.
+**Consequences.** `enrich --backfill` is the manual remedy; the defect itself remains and **will recur on every interruption**. Recorded in HANDOFF.md next-steps so it is not lost. Not a data-loss bug — the Events and their source URLs are intact, merely unenriched.
+**Outcome.** —

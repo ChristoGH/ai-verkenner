@@ -3,6 +3,8 @@
     python -m app.cli run                # ingest → SQLite + Qdrant → dedup → enrich → project (Neo4j)
     python -m app.cli run --no-enrich    # skip the enrichment step (M3 behaviour)
     python -m app.cli run --no-graph     # skip the Neo4j projection (M4 behaviour)
+    python -m app.cli enrich --backfill  # enrich Events an interrupted run left unenriched
+    python -m app.cli enrich --backfill --dry-run --limit 10   # count candidates / cap the spend
     python -m app.cli reindex            # rebuild the Qdrant 'items' collection purely from SQLite
     python -m app.cli graph-reindex      # rebuild the Neo4j graph purely from SQLite
     python -m app.cli digest             # compose a GraphRAG weekly digest over enriched Events (M7)
@@ -30,7 +32,7 @@ from app.digests import build_digest_data, generate_digest
 from app.embeddings import get_embedder
 from app.enrichment import Enricher, get_provider
 from app.graph import Neo4jGraphStore, graph_reindex
-from app.models import Digest
+from app.models import Digest, EnrichedItem, Event
 from app.posts import generate_posts, weak_cluster
 from app.posts.image import export_convergence_image
 from app.posts.writer import write_outputs, write_vault_notes
@@ -66,6 +68,52 @@ def _cmd_run(args: argparse.Namespace) -> int:
     )
     if run.ingestion.failed:
         print(f"  per-source failures: {[r.source_name for r in run.ingestion.failed]}")
+    return 0
+
+
+def _cmd_enrich(args: argparse.Namespace) -> int:
+    """Backfill enrichment for Events that carry no EnrichedItem yet.
+
+    `run` only enriches the Events *it* introduced (`enrich_new_events` walks that run's new rows),
+    so an interrupted run strands every Event it persisted but never reached — no later `run` picks
+    them up. This drains that backlog. It does not fetch, dedup, or project: run `graph-reindex`
+    afterwards to rebuild Neo4j so the newly enriched Events count towards convergence.
+    """
+    init_db()
+    enricher = Enricher(get_provider())
+    with get_session() as session:
+        done = {row.event_id for row in session.exec(select(EnrichedItem)).all()}
+        todo = [e.id for e in session.exec(select(Event)).all() if e.id not in done]
+        todo.sort()
+        if args.limit is not None:
+            todo = todo[: args.limit]
+
+        if args.dry_run:
+            print(f"enrich --backfill: {len(todo)} event(s) would be enriched (dry run)")
+            return 0
+
+        enriched = 0
+        skipped = 0
+        for event_id in todo:
+            event = session.get(Event, event_id)
+            if event is None:
+                skipped += 1
+                continue
+            # Per-event isolation: one bad Event must never end the backfill.
+            try:
+                row = enricher.enrich_event(session, event)
+            except Exception as exc:  # noqa: BLE001 — deliberate per-event isolation
+                logger.warning("backfill: event %s failed: %s", event_id, exc)
+                skipped += 1
+                continue
+            if row is None:
+                skipped += 1
+            else:
+                enriched += 1
+
+    print(f"enrich --backfill: enriched={enriched} skipped={skipped} of {len(todo)} candidate(s)")
+    if enriched:
+        print("  next: python -m app.cli graph-reindex   # so these count towards convergence")
     return 0
 
 
@@ -179,6 +227,20 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--no-enrich", action="store_true", help="skip the M4 enrichment step")
     run_parser.add_argument("--no-graph", action="store_true", help="skip the M5 Neo4j projection")
     run_parser.set_defaults(func=_cmd_run)
+    enrich_parser = sub.add_parser(
+        "enrich", help="backfill enrichment for Events an interrupted run left unenriched"
+    )
+    enrich_parser.add_argument(
+        "--backfill", action="store_true",
+        help="enrich every Event with no EnrichedItem (currently the only mode)",
+    )
+    enrich_parser.add_argument(
+        "--limit", type=int, default=None, help="enrich at most N events (cost control)",
+    )
+    enrich_parser.add_argument(
+        "--dry-run", action="store_true", help="report the candidate count and exit; enrich nothing",
+    )
+    enrich_parser.set_defaults(func=_cmd_enrich)
     sub.add_parser("reindex", help="rebuild Qdrant from SQLite").set_defaults(func=_cmd_reindex)
     sub.add_parser(
         "graph-reindex", help="rebuild Neo4j from SQLite"
