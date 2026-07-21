@@ -120,12 +120,22 @@ class Enricher:
             try:
                 classify, summarise, weak, graph = self._llm_enrich(item)
             except Exception as exc:  # noqa: BLE001 — fail-safe per item
+                # Retry once before degrading: the observed failure mode is a transient
+                # malformed-JSON response, not systemic unavailability. Only a second
+                # consecutive failure for the same item falls back (D-009).
                 logger.warning(
-                    "LLM enrichment failed for event %s (item %s); using fallback: %s",
+                    "LLM enrichment failed for event %s (item %s); retrying once: %s",
                     event.id, item.id, exc,
                 )
-                classify, summarise, weak, graph = fallback_enrichment(item)
-                method = "fallback"
+                try:
+                    classify, summarise, weak, graph = self._llm_enrich(item)
+                except Exception as retry_exc:  # noqa: BLE001 — fail-safe per item
+                    logger.warning(
+                        "LLM enrichment retry failed for event %s (item %s); using fallback: %s",
+                        event.id, item.id, retry_exc,
+                    )
+                    classify, summarise, weak, graph = fallback_enrichment(item)
+                    method = "fallback"
 
         s = classify.scores
         # The ONE source of truth for the priority class — imported, never re-derived.

@@ -269,3 +269,44 @@ def test_enrich_new_events_skips_already_enriched_event(session):
     enriched = enrich_new_events(session, Enricher(provider), [dup])
     assert enriched == 0
     assert len(session.exec(select(EnrichedItem)).all()) == 1
+
+
+class FlakyProvider(FakeProvider):
+    """A FakeProvider whose first `fail_first` completions return unparseable output.
+
+    Models the observed failure mode (a transient malformed-JSON response) rather than a
+    systemically unavailable provider.
+    """
+
+    def __init__(self, *, fail_first: int = 1, **kwargs):
+        super().__init__(**kwargs)
+        self.fail_first = fail_first
+        self.calls = 0
+
+    def complete(self, *, system: str, user: str) -> str:
+        self.calls += 1
+        if self.calls <= self.fail_first:
+            return "Sorry, I cannot produce JSON for this one."
+        return super().complete(system=system, user=user)
+
+
+def test_transient_llm_failure_is_retried_once_and_stays_llm(session):
+    # The first completion is garbage; the retry succeeds → no fallback, no lost event.
+    provider = FlakyProvider(fail_first=1)
+    event = _event_with_item(session)
+
+    e = Enricher(provider).enrich_event(session, event)
+
+    assert e.method == "llm"
+    assert provider.calls > 1  # the retry actually happened
+
+
+def test_persistent_llm_failure_falls_back_after_one_retry(session):
+    # Both the initial attempt and the single retry fail → fallback, still no raise.
+    provider = FakeProvider(bad_template="Classify Item")
+    event = _event_with_item(session)
+
+    e = Enricher(provider).enrich_event(session, event)
+
+    assert e.method == "fallback"
+    assert e.source_url  # the source URL is preserved even on the degraded path

@@ -81,3 +81,27 @@ Entry template:
 **Decision.** (b) — stopped immediately. Reinterpreting an explicit user gate without asking would be a silent decision, and aborting is nearly free here because **enrichment is incremental**: everything already paid for is retained and the run resumes where it left off. Agent (auto).
 **Consequences.** Corpus at abort: **216 events, 110 enriched (107 `llm`, 3 `fallback`), 106 unenriched.** The unenriched count rose from 97 because ingestion added ~17 new events this run. Exactly **one** fallback occurred (event 209); the other two `fallback` rows date from 2026-06-22. This is a **per-event JSON parse failure, not systemic degradation** — materially different from the missing-API-key scenario the gate was written for. STEPS 2–3 (digest, posts) are **not** run, so the M7 Q2 convergence question remains unanswered. Needs Christo's ruling on whether isolated per-event fallbacks should abort or merely be logged.
 **Outcome.** —
+
+## D-009 · 2026-07-21 · Redefine the fallback gate: systemic-only abort + retry-once
+
+**Context.** D-008 aborted the resumed run on a single per-event fallback (event 209, malformed JSON) out of 107 healthy `llm` enrichments. That gate was written for the missing-API-key case, where *every* event degrades; it misfired on a transient parse failure. (Christo's instruction said "record as D-008", but D-008 was already taken by the original abort — renumbered to D-009 to keep the log append-only.)
+**Options.** (a) keep the literal one-strike gate — stops a healthy run on noise; (b) systemic-only abort with a bounded retry.
+**Decision.** (b), per Christo. New rule: **abort only on systemic degradation — ≥3 consecutive fallbacks, or a >10% rolling fallback rate.** Isolated per-event parse failures are retried once, then logged and passed over. Christo, 2026-07-21.
+**Consequences.** `backend/app/enrichment/enricher.py` now retries `_llm_enrich` **once** before degrading; only a second consecutive failure for the same item yields `method="fallback"`. This is a **production code change with no task file calling for it** — flagged as a contract tension, made on Christo's explicit instruction. Two tests added (`test_transient_llm_failure_is_retried_once_and_stays_llm`, `test_persistent_llm_failure_falls_back_after_one_retry`); suite now **170 passed, 1 skipped, 0 failed**. The ≥3-consecutive / >10% thresholds are enforced **operationally by the run monitor**, not in production code — no task file sanctions an in-pipeline circuit breaker, and the cheap incremental resume makes an external gate sufficient. Event 209's fallback row was deleted so it re-enriches under the new rule; corpus went 110 → 109 enriched, 107 unenriched.
+**Outcome.** —
+
+## D-010 · 2026-07-21 · Delete the D-006 stray database
+
+**Context.** `backend/data/dev_corpus.db` was created by the wrong-CWD incident (D-006).
+**Options.** (a) leave it — a live trap for the next relative-path run; (b) delete after positive identification.
+**Decision.** (b), per Christo, with identity verified before `rm`: 175 events and **all 15 enrichments created 08:47–08:52 UTC** (the D-006 window), and untracked by git — versus the real corpus at 216 events with history back to 2026-06-22. Christo, 2026-07-21.
+**Consequences.** Deleted; `data/dev_corpus.db` verified intact at 216 events afterwards. `backend/data/ai_verkenner.db` (2026-06-22, the old default-path DB) was **left alone** — out of scope for this instruction.
+**Outcome.** Done.
+
+## D-011 · 2026-07-21 · Repair the malformed global settings.json
+
+**Context.** `~/.claude/settings.json` was invalid JSON: the object had been duplicated onto itself (a valid prefix, a second complete copy, then a trailing fragment), so the whole file failed to parse.
+**Options.** (a) hand-merge; (b) collapse to one object — both copies held identical values, so nothing was lost.
+**Decision.** (b), per Christo, plus `"cleanupPeriodDays": 3650`. Backup taken first at `~/.claude/settings.json.bak-20260721-111836`. Christo, 2026-07-21.
+**Consequences.** Validated with `jq`; all five original keys preserved (`model`, `enabledPlugins`, `extraKnownMarketplaces`, `effortLevel`, `agentPushNotifEnabled`) plus the new retention key. Outside this repo, so nothing committed.
+**Outcome.** Done.
