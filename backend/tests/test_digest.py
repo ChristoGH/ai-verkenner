@@ -8,7 +8,7 @@ generates with no graph store (SQLite-only).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,7 +23,8 @@ from app.main import app
 from app.models import EnrichedItem, RawItem
 from tests import graph_helpers as gh
 
-TS = datetime(2026, 6, 18, tzinfo=timezone.utc)
+# Relative to now — an absolute date ages out of the convergence/digest windows (see graph_helpers).
+TS = datetime.now(timezone.utc) - timedelta(days=3)
 
 
 class FakeProvider:

@@ -13,11 +13,13 @@ Both are `DigestData` objects, so they drive `app.posts.generate_posts` directly
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.digests.sections import DigestData, DigestItem
 
-_BASE = datetime(2026, 6, 15, tzinfo=timezone.utc)
+# Relative to now (offsets below run forward from here, staying in the past): a hardcoded absolute
+# base ages out of the 30-day convergence window and fails on a calendar boundary, not a code change.
+_BASE = datetime.now(timezone.utc) - timedelta(days=7)
 
 
 def _item(
@@ -52,7 +54,7 @@ def _item(
         source_name=source_name,
         source_url=source_url,
         source_type=source_type,
-        published_at=_BASE.replace(day=_BASE.day + published_offset_days),
+        published_at=_BASE + timedelta(days=published_offset_days),
         priority_class=priority_class,
         category=category,
         tags=tags,

@@ -129,7 +129,9 @@ def test_orchestrator_isolates_a_broken_source():
         raise RuntimeError("boom: simulated network/parse failure")
 
     fetchers = {SourceType.rss: good_fetcher, SourceType.arxiv: broken_fetcher}
-    run = run_ingestion([good, broken], fetchers=fetchers)
+    # This test is about per-source failure isolation, not the recency cap: pin the window so the
+    # fixture's fixed pubDates cannot age past SOURCE_MAX_AGE_DAYS and empty the run.
+    run = run_ingestion([good, broken], fetchers=fetchers, max_age_days=0)
 
     # The good items came through.
     assert len(run.items) == 2

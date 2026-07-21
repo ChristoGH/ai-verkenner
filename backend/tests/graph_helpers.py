@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlmodel import Session
 
 from app.models import EnrichedItem, Entity, Event, RawItem, Relationship, Source
 
-TS = datetime(2026, 6, 18, tzinfo=timezone.utc)
+# Anchored a few days in the past, *relative to now*: the convergence read filters MENTIONS by
+# `GRAPH_CONVERGENCE_WINDOW_DAYS` (default 30), so a hardcoded absolute date silently ages out of
+# the window and turns these tests red on a calendar boundary rather than on a code change.
+TS = datetime.now(timezone.utc) - timedelta(days=3)
 
 
 def add_source(session: Session, name: str) -> Source:
