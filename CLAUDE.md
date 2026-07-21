@@ -81,6 +81,23 @@ These hold across every feature, now and later:
 - **Clear structure over clever abstractions.** No abstraction before three real use cases.
   Prefer obvious, boring code that the next reader understands immediately.
 
+## Session protocol (per D-001, Tempo memory standard)
+
+- **Start of session:** read `HANDOFF.md` first, then this file. `STATUS: NO-GO` in HANDOFF.md
+  means fix the stated blocker before any new work.
+- **Silent decisions are a contract violation.** Any choice made without asking — library
+  picked, error swallowed, scope trimmed, approach substituted, default assumed, test
+  skipped — MUST be appended to `docs/DECISIONS.md` as a D-NNN entry attributed
+  `agent (auto)`, before the session ends. If it wasn't recorded, it wasn't decided —
+  revert it or record it.
+- **End of session:** overwrite `HANDOFF.md` (status, where things stand, next steps,
+  blockers); append decisions to `docs/DECISIONS.md`; diff-sync `docs/memory/` module maps
+  if modules changed. History lives in git, volatile state in HANDOFF.md, reasons in the
+  decision log.
+- **Audit gate:** decision extraction from the session transcript is cross-checked against
+  `docs/DECISIONS.md` by a separate audit session (never the session that made the
+  decisions — the maker is not the checker).
+
 ## Secrets
 Secrets are environment-injected by direnv from ~/.config/secrets/<repo>.env (values) via the committed .envrc (pointer, no values). Runbook: ~/.config/secrets/README.md.
 Agent rules:
