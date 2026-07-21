@@ -3,42 +3,53 @@
 > Volatile state. Overwritten at the end of every session; history lives in git.
 > Read this FIRST at the start of every session (see CLAUDE.md session protocol).
 
-## STATUS: GO
+## STATUS: GO — awaiting Christo's review gate
 
 <!-- GO = safe to start new work. NO-GO = fix the stated blocker first. -->
 
 ## Where things stand (2026-07-21)
 
-Branch `feat/m7.5-broad-run`. **M7.5 milestone status is unchanged and awaiting Christo's
-review — nothing here flips it.**
+Branch `feat/m7.5-broad-run`. **M7.5 STEP 3 (the real broad run) has now been executed.**
+Milestone status is still **unchanged pending Christo's review** — nothing here flips it.
 
-- **The M7.5 STEP 3 broad run is still incomplete.** It was terminated by a **system restart**
-  (`kern.boottime` 07:48:23) mid-enrichment; its last write was 07:41:36. Not sleep, not OOM,
-  not a signal — see D-002 for the ruling-out evidence.
-- **Corpus** (`data/dev_corpus.db`, the source of truth): 199 events, 102 enriched
-  (100 `llm`, 2 `fallback` dated 2026-06-22), **97 unenriched** — the remaining work.
-- **Test suites are green on default settings**: backend **168 passed, 1 skipped, 0 failed**;
-  frontend **10 passed**. They were 5-red at commit `8d441fa` purely from fixture time-rot
-  (D-004), fixed test-only in D-005. No production code was changed this session.
-- **Environment is ready:** `ANTHROPIC_API_KEY` is present via direnv and `config.py:89` falls
-  back to it, so the old "blocked on the API key" note in `docs/m7.5-broad-notes.md` no longer
-  applies. Isolated stores `m75broad` are up and reachable on **6335** (Qdrant) / **7688** (bolt)
-  / **7475** (http); default ports 6333/7687 are closed, so there is no path to the
-  `trafficking-intel-*` stack.
+- **Corpus** (`data/dev_corpus.db`): **246 events, 246 enriched, 0 unenriched**
+  (243 `llm`, 3 `fallback`). All 7 curated `github_*` sources ingested with `GITHUB_TOKEN`.
+- **Digest 3** generated (`--days 7`, 2026-07-14 → 2026-07-21): `body=34 noise=187 weak=8
+  graphrag=True`.
+- **Posts**: 6 drafts in `outputs/posts/` + 6 create-only vault notes in
+  `~/github_repos/knowledge-vault/00-Inbox`. `convergence=True`.
+- **M7 Q2 answered — YES.** Cross-publisher convergence fires on a real corpus:
+  **107 entities span ≥2 distinct sources, 31 span ≥3** (OpenAI 7, Anthropic 6, Google 4).
+  See D-015.
+- **Tests green**: backend **174 passed, 1 skipped, 0 failed**; frontend **10 passed**.
 
 ## Next steps
 
-1. Resume the run: `python -m app.cli run` (enrichment is incremental — only the 97 unenriched
-   events are billed; work already paid for is not repeated).
-2. `python -m app.cli digest --days 7`, then
-   `python -m app.cli posts --digest latest --vault-dir ~/github_repos/knowledge-vault`.
-3. Report the three drafts and whether cross-publisher convergence fires **at corpus level**
-   (M7 Q2) to Christo. No merge, no push, no status flip before that review.
-4. `docs/m7.5-broad-notes.md` still says "blocked on the API key" — update it once STEP 3
-   actually runs.
+1. **Christo reviews the three drafts** in `outputs/posts/` (weak-signal X / LinkedIn / Medium)
+   plus the Noise Report trio. No merge, push, or status flip before that.
+2. Judge the **cluster-coherence concern** (below) — it is the one substantive quality issue.
+3. Fill in `docs/m7.5-broad-notes.md`: it still says "blocked on the API key" and its recipe
+   (`cd backend && python -m app.cli run`) is **wrong** — with a relative `DATABASE_URL` the CLI
+   must run from the **repo root** with `PYTHONPATH=backend` (see D-006).
+4. Fix the orphaned-backlog defect (D-013) under its own task file.
+5. M8 calibration: the empty horizon quadrant (D-014).
 
 ## Open questions / blockers
 
-- **M7 Q2 remains open:** whether cross-publisher convergence fires on a *real* corpus is still
-  unconfirmed. It is confirmed on the synthetic fixture and the M7 digest seed only.
-- A restart already killed one run; prefer a detached, resumable invocation.
+- **Cluster coherence (needs a human call).** The weak-signal cluster is technically valid —
+  8 items, 9 independent publishers — but thematically loose: an enterprise-agent survey sits
+  beside a PPO trust-region paper, a K-12 tutor launch, a vibration-energy-harvester benchmark
+  and a 3D-molecule benchmark. They share only a generic "LLM" hub. Convergence is firing on a
+  broad topic rather than a specific entity, so the "converging" claim is weaker than it reads.
+- **Cluster label is an article headline, not an entity.** The cluster is titled with the
+  VentureBeat headline, which makes the LinkedIn line read "<full headline> is quietly
+  converging across 9 independent sources". On X it truncates to a meaningless `Ag…`.
+- **`horizon_signal` is empty** (`archive` 208 / `operational_update` 37 /
+  `immediate_priority` 1). Weak signals still worked — they are selected by the
+  `is_weak_signal` flag and admit `archive` items, so the section is NOT empty. Per Christo's
+  standing ruling `priority.py` is untouched (D-014).
+- **Convergence image is a placeholder** — `matplotlib`/`networkx` are not installed; the draft
+  carries a "screenshot the Cosmograph Network view" pointer instead.
+- **Event 209 fell back twice** (retry included) — a persistently malformed item, not transient.
+- Corpus relevance noise: the Noise Report's second entry is an MIT Tech Review article about
+  perimenopause — a source-registry relevance question, not a code defect.

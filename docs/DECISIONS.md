@@ -121,3 +121,19 @@ Entry template:
 **Decision.** (b), per Christo — (a) is a behavioural change to the core loop and belongs behind a task file. Christo, 2026-07-21.
 **Consequences.** `enrich --backfill` is the manual remedy; the defect itself remains and **will recur on every interruption**. Recorded in HANDOFF.md next-steps so it is not lost. Not a data-loss bug — the Events and their source URLs are intact, merely unenriched.
 **Outcome.** —
+
+## D-014 · 2026-07-21 · Observation (not a change): the horizon quadrant is empty by one relevance point
+
+**Context.** After the full backfill (218/218 enriched), the priority distribution was `archive` 192 / `operational_update` 26 / **`horizon_signal` 0**. Weak Signal of the Week is drawn from the horizon quadrant, so an empty quadrant means no weak signal can be surfaced — despite genuine convergence existing in the graph.
+**Options.** (a) relax the thresholds to force a signal; (b) record as a calibration observation and leave the rule alone.
+**Decision.** (b), per Christo — **`backend/app/scoring/priority.py` stays untouched.** This is logged as an M8 calibration observation, not a change. Christo, 2026-07-21.
+**Consequences.** Mechanism: `horizon_signal` requires **relevance ≤ 2 AND strategic_potential ≥ 4** (`priority.py:39-40`). Exactly **6 items reach `strategic_potential = 4`, and all 6 also carry `relevance = 3`**, so the preceding `relevance >= 3 → operational_update` branch claims them first. **Corpus max relevance is 3** and max strategic_potential is 4, so nothing reaches `immediate_priority` either. The quadrant misses by a single relevance point on six items — this reads as *enrichment score calibration*, not a defect in the priority rule (the rule is doing exactly what it says). Standing ruling: **if the quadrant is still empty after the `github_*` ingest, the digest ships with an honest empty weak-signal section plus the Noise Report; no threshold is relaxed to manufacture a signal.**
+**Outcome.** —
+
+## D-015 · 2026-07-21 · Corpus-level convergence (M7 Q2) confirmed on real feeds
+
+**Context.** M7 Q2 asked whether cross-publisher convergence fires on a *real* corpus, not just the synthetic fixture. Answerable directly from the graph after `graph-reindex` over 218 enriched Events — no extra spend.
+**Options.** (a) infer it from the digest output only; (b) query the convergence read directly as well.
+**Decision.** (b) — read `Neo4jGraphStore.convergence(since)` over the configured 30-day window. Agent (auto).
+**Consequences.** **Convergence fires: 107 entities span ≥2 distinct sources and 31 span ≥3**, out of 717 entities. Leaders: OpenAI (7 sources / 18 mentions / degree 23), Anthropic (6 / 9 / 11), Google (4 / 9 / 10), Microsoft (3 / 11 / 11). This answers M7 Q2 **yes at corpus level**, independently of whether the digest surfaces a Weak Signal of the Week — which is separately blocked by the empty horizon quadrant (D-014). The two facts must be reported together, or an empty weak-signal section would be misread as "convergence did not fire".
+**Outcome.** —
