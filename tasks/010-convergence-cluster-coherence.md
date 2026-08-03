@@ -60,6 +60,9 @@ VentureBeat headline; "9 independent sources" was the union across 8 unrelated c
   produces **either** a coherent cluster **or** the honest "quiet week" degradation — never the
   current 8-item incoherent cluster. Record which, in the run notes.
 - Every source URL is preserved in the draft regardless of path (URL invariant).
+- **Tier disclosure (required by D-016 ruling D).** When the cluster is drawn from `archive`-tier
+  items rather than `horizon_signal`, the draft must **say so** in plain language and make no claim
+  of top-tier provenance. An archive-sourced weak signal is permitted; an undisclosed one is not.
 
 ### Test plan
 
@@ -72,6 +75,8 @@ VentureBeat headline; "9 independent sources" was the union across 8 unrelated c
   publisher count.
 - `test_no_cluster_degrades_honestly` — empty/singleton case produces the "quiet week" wording and
   makes **no** converging claim.
+- `test_archive_tier_cluster_is_disclosed` — a cluster built from `archive`-tier items produces a
+  draft that states the tier (D-016 ruling D).
 
 ---
 
@@ -169,10 +174,15 @@ HARD CONSTRAINTS
 - New settings go in backend/app/core/config.py with defaults; no magic numbers.
 - No new abstractions (no ClusterStrategy class). One grouping function.
 
-TESTS (all five, names as written in the task file)
+RULING IN FORCE (D-016 item D, 2026-08-03): an `archive`-tier weak signal IS
+permitted — `horizon_signal` is empty for a known enrichment reason (D-018), fixed
+separately under task 012. But the draft MUST state the tier honestly and claim no
+top-tier provenance. Disclosure is an acceptance criterion, not a nicety.
+
+TESTS (all six, names as written in the task file)
 test_mixed_drivers_do_not_converge · test_shared_driver_converges ·
 test_cluster_label_is_entity_not_headline · test_publisher_count_scoped_to_driver ·
-test_no_cluster_degrades_honestly
+test_no_cluster_degrades_honestly · test_archive_tier_cluster_is_disclosed
 
 VERIFY ON REAL DATA
 Run the digest + posts against data/dev_corpus.db for --days 7 over
