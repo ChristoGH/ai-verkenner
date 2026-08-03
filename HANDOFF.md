@@ -3,53 +3,69 @@
 > Volatile state. Overwritten at the end of every session; history lives in git.
 > Read this FIRST at the start of every session (see CLAUDE.md session protocol).
 
-## STATUS: GO — awaiting Christo's review gate
+## STATUS: GO — blocked on one human ruling (D-016 item D)
 
 <!-- GO = safe to start new work. NO-GO = fix the stated blocker first. -->
 
-## Where things stand (2026-07-21)
+## Where things stand (2026-08-03)
 
-Branch `feat/m7.5-broad-run`. **M7.5 STEP 3 (the real broad run) has now been executed.**
-Milestone status is still **unchanged pending Christo's review** — nothing here flips it.
+Branch `feat/m7.5-broad-run`. **No code has changed since 2026-07-21** (last commit `92841f7`).
+The 13-day gap was a review-gate stall, not a technical blocker. Two review/analysis sessions have
+run since; all output is documentation.
 
-- **Corpus** (`data/dev_corpus.db`): **246 events, 246 enriched, 0 unenriched**
-  (243 `llm`, 3 `fallback`). All 7 curated `github_*` sources ingested with `GITHUB_TOKEN`.
-- **Digest 3** generated (`--days 7`, 2026-07-14 → 2026-07-21): `body=34 noise=187 weak=8
-  graphrag=True`.
-- **Posts**: 6 drafts in `outputs/posts/` + 6 create-only vault notes in
-  `~/github_repos/knowledge-vault/00-Inbox`. `convergence=True`.
-- **M7 Q2 answered — YES.** Cross-publisher convergence fires on a real corpus:
-  **107 entities span ≥2 distinct sources, 31 span ≥3** (OpenAI 7, Anthropic 6, Google 4).
-  See D-015.
-- **Tests green**: backend **174 passed, 1 skipped, 0 failed**; frontend **10 passed**.
+- **Corpus** (`data/dev_corpus.db`): 246 events, 246 enriched (243 `llm`, 3 `fallback`).
+  **Last written 2026-07-21 16:14 — now 13 days stale.**
+- **Tests**: backend 174 passed / 1 skipped / 0 failed; frontend 10 passed. Unchanged (no source
+  file touched since 21 July).
+- **M7.5 drafts: HELD from publication.** The weak-signal cluster makes a false converging claim —
+  8 items, 1 of which supports the stated thesis. See
+  [`docs/reviews/2026-07-25-m7.5-draft-review.md`](docs/reviews/2026-07-25-m7.5-draft-review.md).
+  This fails Task 009's own acceptance criterion, so **M7.5 does not pass its gate.**
+
+### Landed since the last handoff (docs only)
+
+- `docs/reviews/2026-07-25-m7.5-draft-review.md` — full draft review, root cause, decisions A–F.
+- `tasks/010-convergence-cluster-coherence.md` — cluster coherence + X char limit + noise cap.
+- `tasks/011-source-scope-and-fetch-health.md` — three whole-publication feeds + eight silent sources.
+- `tasks/012-enrichment-score-calibration.md` — the M8 calibration work, now root-caused.
+- `docs/DECISIONS.md` — D-016 (pending ruling), D-017 (registry audit), D-018 (D-014 corrected).
+- `docs/m7.5-broad-notes.md` — corrected: it wrongly said "blocked on the API key" and carried a
+  run recipe with the wrong working directory (the D-006 trap). Both fixed.
 
 ## Next steps
 
-1. **Christo reviews the three drafts** in `outputs/posts/` (weak-signal X / LinkedIn / Medium)
-   plus the Noise Report trio. No merge, push, or status flip before that.
-2. Judge the **cluster-coherence concern** (below) — it is the one substantive quality issue.
-3. Fill in `docs/m7.5-broad-notes.md`: it still says "blocked on the API key" and its recipe
-   (`cd backend && python -m app.cli run`) is **wrong** — with a relative `DATABASE_URL` the CLI
-   must run from the **repo root** with `PYTHONPATH=backend` (see D-006).
-4. Fix the orphaned-backlog defect (D-013) under its own task file.
-5. M8 calibration: the empty horizon quadrant (D-014).
+**Blocking, human-only:**
+
+0. **Rule on D-016 item (D)** — is an `archive`-sourced weak signal acceptable under D-014's spirit?
+   `horizon_signal` is 0; the quadrant is non-empty only because `HORIZON_CLASSES` admits `archive`.
+   Nothing merges until this is answered. Then update D-016 with the ruling and re-attribute it.
+
+**Then, in order:**
+
+1. **Task 010 Session 1** — cluster coherence (blocker for all draft work). Prompt in the task file.
+2. **Task 010 Session 2** — X thread char limit + Noise Report cap.
+3. **Re-ingest to a current window.** The corpus is 13 days stale and the drafts cover
+   2026-07-14 → 07-21. A correct weak signal about a window that closed two weeks ago is still not
+   publishable. Use the corrected recipe in `docs/m7.5-broad-notes.md` — **repo root,
+   `PYTHONPATH=backend`** (D-006). This run also re-tests D-013: if it is interrupted, the orphan
+   defect recurs and will be visible immediately.
+4. **Task 011** — source scope + fetch health. Independent of 010; can run in parallel.
+5. **Task 012** — enrichment calibration. Independent of 010; needs a cost decision for any
+   full-corpus re-enrichment.
+6. **D-013** — orphaned-backlog defect, still open, still needs its own task file.
 
 ## Open questions / blockers
 
-- **Cluster coherence (needs a human call).** The weak-signal cluster is technically valid —
-  8 items, 9 independent publishers — but thematically loose: an enterprise-agent survey sits
-  beside a PPO trust-region paper, a K-12 tutor launch, a vibration-energy-harvester benchmark
-  and a 3D-molecule benchmark. They share only a generic "LLM" hub. Convergence is firing on a
-  broad topic rather than a specific entity, so the "converging" claim is weaker than it reads.
-- **Cluster label is an article headline, not an entity.** The cluster is titled with the
-  VentureBeat headline, which makes the LinkedIn line read "<full headline> is quietly
-  converging across 9 independent sources". On X it truncates to a meaningless `Ag…`.
-- **`horizon_signal` is empty** (`archive` 208 / `operational_update` 37 /
-  `immediate_priority` 1). Weak signals still worked — they are selected by the
-  `is_weak_signal` flag and admit `archive` items, so the section is NOT empty. Per Christo's
-  standing ruling `priority.py` is untouched (D-014).
-- **Convergence image is a placeholder** — `matplotlib`/`networkx` are not installed; the draft
-  carries a "screenshot the Cosmograph Network view" pointer instead.
-- **Event 209 fell back twice** (retry included) — a persistently malformed item, not transient.
-- Corpus relevance noise: the Noise Report's second entry is an MIT Tech Review article about
-  perimenopause — a source-registry relevance question, not a code defect.
+- **D-016 (D) — the one blocking ruling.** See above.
+- **Corpus staleness.** Any publication decision now requires a fresh run first (step 3).
+- **Eight enabled sources yield zero rows** (D-017) — Anthropic News points at an HTML page, not a
+  feed; LangChain Blog, LlamaIndex Releases, Neo4j Releases, Eugene Yan silently fail; three
+  `github_*` may just need `GITHUB_TOKEN`. The registry currently claims coverage the corpus does
+  not have. Task 011.
+- **`horizon_signal` empty — root cause now known** (D-018, corrects D-014): axis collinearity,
+  r(relevance, strategic_potential) = 0.842, `sp` never exceeds `rel + 1`. The quadrant is
+  structurally unreachable. `priority.py` remains untouched and is **not** the defect. Task 012.
+- **Convergence image is still a placeholder** — `matplotlib`/`networkx` not installed.
+- **Event 209 fell back twice** — persistently malformed item, not transient.
+- **19 of 266 corpus items (7%) are off-topic**, all from three site-wide feeds (D-017). Existing
+  rows are left in place per the URL invariant; they age out of the digest window.

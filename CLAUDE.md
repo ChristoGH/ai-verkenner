@@ -105,3 +105,10 @@ Agent rules:
 - NEVER write secret values into files, code, or commits. Needed-but-missing var: add its NAME to .env.example and ask Christo.
 - Missing env var at runtime => the runbook's stale/missing-key playbook. No defaults, placeholders, or load_dotenv workarounds.
 - git commit always with -m. Never --no-verify.
+
+## Agent addendum (binding)
+
+[`docs/AGENT_ADDENDUM.md`](docs/AGENT_ADDENDUM.md) is binding alongside this file. It covers
+ground-truth verification before any state claim, reading files before referencing them in prompts,
+doing/delegating/escalating, epistemic marking, stop conditions in handover prompts, and keeping
+documents true. Read it at session start with this file.
