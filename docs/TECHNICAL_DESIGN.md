@@ -244,7 +244,15 @@ the body on the user's themes) → **Neo4j expand** (`graph_signals` convergence
 (`sections.py`, routed by the canonical priority class + source facts; reuses `rank_with_graph`, no
 re-derivation) → **one composition LLM call** (`prompts/digest.md`) or the deterministic fallback
 render (`render.py`). The weak-signals / research-radar sections draw from the hub-dampened
-convergence quadrant; the noise count is the honest archived/high-hype total. It degrades to
+convergence quadrant; the noise count is the honest archived/high-hype total. **Cluster coherence
+(task 010, current):** the weak-signal section is the largest group of items sharing **one driving
+entity** — `sections.coherent_cluster()` groups on `GraphSignal.driver_uid` (the normalised entity
+identity, never the display name) with a floor of `WEAK_CLUSTER_MIN_ITEMS` (default 2), and records
+the winner as `DigestData.weak_driver`. The previous per-item `convergence > 0` filter was a
+**per-item** property and collected items converging on unrelated entities; a convergence may now be
+claimed only when `weak_driver` is non-empty, and the post generator reads that one value rather
+than re-deriving coherence. Known residual: "largest group" selects the corpus's loudest entity
+(D-024) — driver *eligibility* is unresolved. It degrades to
 SQLite-only when Qdrant/Neo4j are down and persists as `Digest` (`GET /digests`, `GET /digests/{id}`,
 a Digests page). Generated via `python -m app.cli digest`.
 

@@ -56,6 +56,9 @@ class GraphSignal:
     score: float = 0.0            # the combined (dampened) adjustment (>= 0)
     why: str = ""                 # e.g. "convergence: 'X' across 3 independent sources ..."
     driver: str = ""              # the driving entity name (the convergence is about)
+    # The driving entity's uid — the NORMALISED identity behind `driver`. Two items converge on the
+    # same thing when their `driver_uid` matches; the display name is not a grouping key.
+    driver_uid: int | None = None
     evidence_sources: tuple[str, ...] = field(default_factory=tuple)  # driver's distinct sources
     event_count: int = 0          # developments the driving entity spans (breadth)
     idf: float = 0.0              # rarity weight that made it win (for transparency)
@@ -173,6 +176,7 @@ def compute_signals(
                 score=score,
                 why=_why(driver_name, driver_stat, recency_factor),
                 driver=driver_name,
+                driver_uid=driver_stat.entity_uid,
                 evidence_sources=driver_stat.source_names,
                 event_count=driver_stat.event_count,
                 idf=driver_idf,

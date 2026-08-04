@@ -1,7 +1,18 @@
 # Task 010 (M7.5 — remediation) — Convergence cluster coherence + draft surface validity
 
-**Status: NOT STARTED** — raised by [`docs/reviews/2026-07-25-m7.5-draft-review.md`](../docs/reviews/2026-07-25-m7.5-draft-review.md)
+**Status: DEFECT 1 DONE (at review gate, 2026-08-03) · DEFECTS 2 + 3 NOT STARTED** — raised by
+[`docs/reviews/2026-07-25-m7.5-draft-review.md`](../docs/reviews/2026-07-25-m7.5-draft-review.md)
 at the M7.5 review gate.
+
+> **Defect 1 outcome (2026-08-03).** Implemented and verified on `data/dev_corpus.db` over
+> 2026-07-14 → 2026-07-21. **The coherent-cluster path fired**, not the degradation: the quadrant's
+> 84 converging items resolve to **30 distinct drivers** (confirming the review's diagnosis), and
+> the largest shared-driver group is **12 items on `OpenAI`**. All acceptance criteria below are
+> met. **Residual finding, escalated, not fixed here:** the largest group is a *hub*, so the draft
+> is now mechanically coherent but still overstates ("Weak Signal of the Week: OpenAI") — driver
+> **eligibility** is out of this task's scope. See [D-024](../docs/DECISIONS.md); needs a ruling.
+> Related: [D-025](../docs/DECISIONS.md) shows the X hook truncation is caused by a 200-char lead
+> URL, **not** by the cluster label — Defect 2 cannot be closed by trimming prose alone.
 
 Task 009 shipped drafts that fail one of its own acceptance criteria — *"the thin/no-convergence case
 degrades gracefully — **no false 'converging' claim**"*. This task closes that gap and two draft-surface
@@ -185,14 +196,25 @@ test_cluster_label_is_entity_not_headline · test_publisher_count_scoped_to_driv
 test_no_cluster_degrades_honestly · test_archive_tier_cluster_is_disclosed
 
 VERIFY ON REAL DATA
-Run the digest + posts against data/dev_corpus.db for --days 7 over
+PREREQUISITE — the graph is almost certainly EMPTY. The 2026-07-21 run tore the
+stores down with `down -v`, which removes the volumes. Convergence is read from
+Neo4j, so `driver` will be empty for every item until the graph is rebuilt. Before
+generating anything:
+    docker compose -p m75broad -f docker-compose.m75.yml up -d
+    PYTHONPATH=backend python -m app.cli graph-reindex
+SQLite is the source of truth and Neo4j is a rebuildable derived index (ADR 0001),
+so this is a safe rebuild, not a re-fetch — it costs no LLM spend.
+Confirm the graph is populated BEFORE concluding anything about `driver`. An empty
+graph is an environment state, not the defect you are fixing — do not confuse them.
+
+Then run the digest + posts against data/dev_corpus.db for --days 7 over
 2026-07-14 → 2026-07-21. NOTE: with a relative DATABASE_URL the CLI must be run from
 the REPO ROOT with PYTHONPATH=backend (per D-006) — docs/m7.5-broad-notes.md has the
 wrong recipe, do not follow it. Report which path fired (coherent cluster vs honest
 degradation) and paste the regenerated weak-signal LinkedIn hook line.
 
 ACCEPTANCE
-- Full backend suite green (baseline: 174 passed, 1 skipped, 0 failed) + 5 new tests.
+- Full backend suite green (baseline: 174 passed, 1 skipped, 0 failed) + 6 new tests.
 - Regenerated drafts no longer contain the 8-item incoherent cluster.
 - Every source URL preserved on both paths.
 - CHANGELOG.md entry.
@@ -200,8 +222,10 @@ ACCEPTANCE
   (per CLAUDE.md session protocol), and overwrite HANDOFF.md at session end.
 
 STOP CONDITIONS — report instead of improvising:
-- If `driver` is empty/None for most weak-signal items, STOP and report. That would
-  mean the graph signal is not populated as expected and changes the whole approach.
+- If `driver` is empty/None for most weak-signal items AFTER a successful
+  graph-reindex, STOP and report. That would mean the graph signal is not populated
+  as expected and changes the whole approach. (Before the reindex, empty is normal —
+  see the prerequisite above.)
 - If grouping leaves zero clusters ≥ 2 items on the real corpus, that is a valid
   result — implement it, ship the honest degradation, and say so plainly. Do not
   lower the minimum to manufacture a cluster.

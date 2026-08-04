@@ -129,6 +129,11 @@ class Settings:
         self.digest_section_limit: int = int(os.getenv("DIGEST_SECTION_LIMIT", "8"))
         # How many semantic neighbours the GraphRAG retrieve step pulls for the theme query.
         self.digest_retrieve_limit: int = int(os.getenv("DIGEST_RETRIEVE_LIMIT", "40"))
+        # Smallest group of items sharing ONE driving entity that may be called a convergence
+        # (task 010 / D-016 B). Below this, the weak-signal piece degrades honestly rather than
+        # claiming a cluster. This is a coherence floor, NOT a scoring threshold — raising or
+        # lowering it to manufacture a signal is the failure D-014 forbids.
+        self.weak_cluster_min_items: int = int(os.getenv("WEAK_CLUSTER_MIN_ITEMS", "2"))
 
         # Post generator (M7.5). `posts_output_dir` is the git-ignored working area for generated
         # drafts. `vault_dir` (from VAULT_DIR) is the user's Obsidian vault — when set, drafts are

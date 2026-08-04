@@ -13,8 +13,12 @@ Invariants honoured (they apply to outputs, not just internal data — CLAUDE.md
   reading is labelled `Why it matters`. They are never blended into one sentence.
 - **The hype inversion is respected.** The Noise Report ranks *loudest-but-emptiest* first
   (high hype, low salience); nothing sums hype with the salient axes.
-- **No false convergence.** When no genuine cross-source convergence fired, the Weak-Signal piece
-  degrades to an honest "quiet week" framing and never claims items are "converging".
+- **No false convergence.** A convergence is claimed only when the items share ONE driving entity
+  (`sections.coherent_cluster`); otherwise the Weak-Signal piece degrades to an honest "quiet week"
+  framing and never says "converging". The label, the "N independent sources" count and the
+  interpretation are all scoped to that shared driver — never unioned across unrelated items.
+- **Tier is disclosed.** When the piece is built from `archive`-tier items, it says so and claims no
+  top-tier provenance (D-016 ruling D).
 
 This module does not re-derive ranking or the priority rule — the selection already happened in
 `app.digests.sections`; here we only present it.
@@ -69,10 +73,16 @@ def _md_link(item: DigestItem) -> str:
     return f"[{item.source_name or 'source'}]({item.source_url})"
 
 
-def _publishers(items: tuple[DigestItem, ...]) -> list[str]:
-    """Distinct contributing publishers across the cluster (falls back to the item source name)."""
+def _publishers(items: tuple[DigestItem, ...], driver: str = "") -> list[str]:
+    """Distinct publishers **backing the claim** (falls back to the item source name).
+
+    On the converged path only items sharing the cluster's driving entity contribute, so
+    "N independent sources" is N sources behind *one* claim. Unioning across unrelated items — the
+    M7.5 defect — produced a number that was arithmetically correct and rhetorically false.
+    """
+    contributing = [it for it in items if it.driver == driver] if driver else list(items)
     seen: list[str] = []
-    for it in items:
+    for it in contributing:
         names = it.contributing_sources or ((it.source_name,) if it.source_name else ())
         for name in names:
             if name and name not in seen:
@@ -115,9 +125,45 @@ def _banner_block(piece_label: str, surface_label: str) -> list[str]:
     ]
 
 
-def _theme(items: tuple[DigestItem, ...]) -> str:
-    """A short human theme for the cluster — the lead item's title."""
+def _theme(items: tuple[DigestItem, ...], driver: str = "") -> str:
+    """The cluster label: the shared **driving entity** when one exists, else the lead item's title.
+
+    A headline is one publisher's framing of one item; it cannot label a cluster (it produced the
+    ungrammatical M7.5 hook). The entity is what the items actually share, and it is short.
+    """
+    if driver.strip():
+        return _clean(driver)
     return _clean(items[0].title) if items else "an emerging signal"
+
+
+def _tier_note(items: tuple[DigestItem, ...]) -> str:
+    """Honest provenance when the piece is built from `archive`-tier items (D-016 ruling D).
+
+    An archive-sourced weak signal is permitted; an *undisclosed* one is not. Returns "" when no
+    archive-tier item is involved, so the line only ever appears when it is true.
+    """
+    archived = [it for it in items if it.priority_class == "archive"]
+    if not archived:
+        return ""
+    scope = ("All of these are" if len(archived) == len(items)
+             else f"{len(archived)} of these {len(items)} are")
+    return (f"Tier disclosure: {scope} **archive-tier** items — the lowest-salience bucket in the "
+            f"corpus, not the horizon-signal tier. No top-tier provenance is claimed.")
+
+
+def _lead_interpretation(items: tuple[DigestItem, ...]) -> str:
+    """The lead item's `why_it_matters`, **attributed to that item** — never as the cluster's view.
+
+    Presenting one item's interpretation as the whole cluster's is what made the M7.5 draft assert a
+    thesis eight items did not support. Returns "" when the lead carries no interpretation.
+    """
+    if not items:
+        return ""
+    interp = _clean(items[0].why_it_matters)
+    if not interp:
+        return ""
+    return (f"AI Verkenner's reading of the FIRST item above only — not a claim about the whole "
+            f"cluster — {interp}")
 
 
 # ----------------------------------------------------------------------------------------------- #
@@ -128,29 +174,28 @@ def _theme(items: tuple[DigestItem, ...]) -> str:
 def weak_cluster(data: DigestData) -> tuple[tuple[DigestItem, ...], bool]:
     """The items driving the weak-signal piece + whether a genuine convergence fired.
 
-    `convergence > 0` is set only when the hub-dampened contribution fired (>= GRAPH_MIN_SOURCES
-    distinct sources). If any weak-signal item converged, use the converging subset; otherwise the
-    piece degrades to the whole (single-source) quadrant with an honest framing.
+    The coherence decision is **not re-derived here** — `sections.coherent_cluster` already required
+    a shared driving entity and recorded its name in `data.weak_driver`. A non-empty `weak_driver`
+    means `weak_signals` *is* that cluster; empty means the quiet-week quadrant, which may not be
+    called converging.
     """
-    weak = data.weak_signals
-    converging = tuple(it for it in weak if it.convergence > 0)
-    if converging:
-        return converging, True
-    return weak, False
+    return data.weak_signals, bool(data.weak_driver)
 
 
-def _weak_x(cluster: tuple[DigestItem, ...], converged: bool, image_ref: str) -> Draft:
+def _weak_x(cluster: tuple[DigestItem, ...], driver: str, image_ref: str) -> Draft:
     urls = _all_urls(cluster)
-    pubs = _publishers(cluster)
+    pubs = _publishers(cluster, driver)
     lead_url = cluster[0].source_url if cluster else ""
+    tier = _tier_note(cluster)
+    interp = _lead_interpretation(cluster)
 
-    if converged:
+    if driver:
         prefix = "🛰️ Weak signal of the week: "
         suffix = (
             f" — {len(cluster)} items converging across {len(pubs)} independent sources, "
             f"before it's a headline. Evidence 👇 {lead_url}"
         )
-        hook = _fit_hook(prefix, _theme(cluster), suffix)
+        hook = _fit_hook(prefix, _theme(cluster, driver), suffix)
     else:
         prefix = "🛰️ Quiet week on the radar — no strong cross-source convergence yet. Watching: "
         suffix = f". {lead_url}" if lead_url else "."
@@ -163,10 +208,16 @@ def _weak_x(cluster: tuple[DigestItem, ...], converged: bool, image_ref: str) ->
     lines.append(f"📊 {image_ref}")
     lines.append("")
     lines.append("**Thread (optional):**")
-    for i, it in enumerate(cluster, start=2):
-        lines.append(f"{i}/ {FACT_LABEL}: {_clean(it.summary)} ({_md_link(it)})")
-    if cluster and _clean(cluster[0].why_it_matters):
-        lines.append(f"{len(cluster) + 2}/ {INTERP_LABEL}: {_clean(cluster[0].why_it_matters)}")
+    n = 1
+    for it in cluster:
+        n += 1
+        lines.append(f"{n}/ {FACT_LABEL}: {_clean(it.summary)} ({_md_link(it)})")
+    if interp:
+        n += 1
+        lines.append(f"{n}/ {INTERP_LABEL}: {interp}")
+    if tier:
+        n += 1
+        lines.append(f"{n}/ {tier}")
     if urls:
         lines.append("")
         lines.append("Sources: " + " ".join(urls))
@@ -183,12 +234,12 @@ def _bullets_or_pad(items: tuple[DigestItem, ...], pad_note: str) -> list[str]:
     return bullets
 
 
-def _weak_linkedin(cluster: tuple[DigestItem, ...], converged: bool, image_ref: str) -> Draft:
+def _weak_linkedin(cluster: tuple[DigestItem, ...], driver: str, image_ref: str) -> Draft:
     urls = _all_urls(cluster)
-    pubs = _publishers(cluster)
-    if converged:
-        hook = (f"The AI signal most feeds will miss this week: {_theme(cluster)} is quietly "
-                f"converging across {len(pubs)} independent sources.")
+    pubs = _publishers(cluster, driver)
+    if driver:
+        hook = (f"The AI signal most feeds will miss this week: {_theme(cluster, driver)} is "
+                f"quietly converging across {len(pubs)} independent sources.")
         pad = "(only a few early signals so far — full horizon list in the digest)"
     else:
         hook = ("No loud convergence this week — here's what is quietly moving on the AI horizon, "
@@ -200,9 +251,13 @@ def _weak_linkedin(cluster: tuple[DigestItem, ...], converged: bool, image_ref: 
     lines.append("")
     lines += _bullets_or_pad(cluster, pad)
     lines.append("")
-    interp = _clean(cluster[0].why_it_matters) if cluster else ""
+    interp = _lead_interpretation(cluster)
     lines.append(f"{INTERP_LABEL}: " + (interp or
                  "individually weak, together a direction worth tracking early."))
+    tier = _tier_note(cluster)
+    if tier:
+        lines.append("")
+        lines.append(tier)
     lines.append("")
     lines.append(f"[image slot] 📊 {image_ref}")
     lines.append("")
@@ -226,11 +281,12 @@ def _timeline(items: tuple[DigestItem, ...]) -> list[str]:
             for it in dated]
 
 
-def _weak_medium(cluster: tuple[DigestItem, ...], converged: bool, image_ref: str,
+def _weak_medium(cluster: tuple[DigestItem, ...], driver: str, image_ref: str,
                  period: str) -> Draft:
     urls = _all_urls(cluster)
-    pubs = _publishers(cluster)
-    title = (f"Weak Signal of the Week: {_theme(cluster)}" if converged
+    pubs = _publishers(cluster, driver)
+    converged = bool(driver)
+    title = (f"Weak Signal of the Week: {_theme(cluster, driver)}" if converged
              else "Weak Signal of the Week: a quiet horizon")
 
     lines = _banner_block("Weak Signal of the Week", "Medium (long-form)")
@@ -240,16 +296,22 @@ def _weak_medium(cluster: tuple[DigestItem, ...], converged: bool, image_ref: st
     lines.append("")
     if converged:
         lines.append(
-            f"This week AI Verkenner surfaced a convergence most feeds will miss: **{_theme(cluster)}** "
-            f"drew {len(cluster)} individually-weak signals across **{len(pubs)} independent "
-            f"publishers** ({', '.join(pubs)}) — the pattern of something moving *before* it is loud."
+            f"This week AI Verkenner surfaced a convergence most feeds will miss: "
+            f"**{_theme(cluster, driver)}** drew {len(cluster)} individually-weak signals across "
+            f"**{len(pubs)} independent publishers** ({', '.join(pubs)}) — the pattern of something "
+            f"moving *before* it is loud. Every item below converges on that same entity; that "
+            f"shared driver is what makes this a cluster rather than a list."
         )
     else:
         lines.append(
-            "No strong cross-source convergence fired this week. Rather than manufacture a trend, "
-            "here are the quiet items sitting on the horizon — single-source for now, worth watching "
-            "if they start to overlap."
+            "No strong cross-source convergence fired this week: no group of items shared a driving "
+            "entity. Rather than manufacture a trend, here are the quiet items sitting on the "
+            "horizon — unconnected for now, worth watching if they start to overlap."
         )
+    tier = _tier_note(cluster)
+    if tier:
+        lines.append("")
+        lines.append(tier)
     lines.append("")
     lines.append("## The cluster (source facts)")
     for it in cluster:
@@ -259,8 +321,9 @@ def _weak_medium(cluster: tuple[DigestItem, ...], converged: bool, image_ref: st
     lines.append("## Timeline")
     lines += _timeline(cluster)
     lines.append("")
-    lines.append(f"## {INTERP_LABEL} (interpretation)")
-    interps = [f"- {_clean(it.why_it_matters)}" for it in cluster if _clean(it.why_it_matters)]
+    lines.append(f"## {INTERP_LABEL} (AI Verkenner's reading, item by item)")
+    interps = [f"- On *{_clean(it.title)}*: {_clean(it.why_it_matters)}"
+               for it in cluster if _clean(it.why_it_matters)]
     lines += interps or ["- Individually weak; together, an early direction worth tracking."]
     lines.append("")
     lines.append(f"![convergence cluster] {image_ref}")
@@ -430,12 +493,15 @@ def generate_posts(
     period = _period_label(data.period_start, data.period_end)
 
     cluster, converged = weak_cluster(data)
+    # The shared driving entity, or "" when no coherent cluster survived grouping. Everything the
+    # weak-signal drafts claim (label, source count, "converging") keys off this one value.
+    driver = data.weak_driver if converged else ""
     noise, _hh = _noise_ranked(data, high_hype)
 
     drafts = (
-        _weak_x(cluster, converged, image_ref),
-        _weak_linkedin(cluster, converged, image_ref),
-        _weak_medium(cluster, converged, image_ref, period),
+        _weak_x(cluster, driver, image_ref),
+        _weak_linkedin(cluster, driver, image_ref),
+        _weak_medium(cluster, driver, image_ref, period),
         _noise_x(noise, high_hype),
         _noise_linkedin(noise, high_hype),
         _noise_medium(noise, high_hype, period),

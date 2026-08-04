@@ -21,6 +21,12 @@ from app.digests.sections import DigestData, DigestItem
 # base ages out of the 30-day convergence window and fails on a calendar boundary, not a code change.
 _BASE = datetime.now(timezone.utc) - timedelta(days=7)
 
+# The driving entity every item in `converging_digest()` converges on. `DRIVER_UID` is the normalised
+# identity that grouping keys off; `DRIVER` is only the display label. Deliberately NOT equal to any
+# item's title, so the cluster-label regression stays pinned.
+DRIVER = "on-device agent runtime"
+DRIVER_UID = 4242
+
 
 def _item(
     event_id: int,
@@ -46,6 +52,8 @@ def _item(
     graph_score: float = 0.0,
     convergence: int = 0,
     contributing_sources: tuple[str, ...] = (),
+    driver: str = "",
+    driver_uid: int | None = None,
     published_offset_days: int = 0,
 ) -> DigestItem:
     return DigestItem(
@@ -73,6 +81,8 @@ def _item(
         graph_score=graph_score,
         convergence=convergence,
         contributing_sources=contributing_sources,
+        driver=driver,
+        driver_uid=driver_uid,
     )
 
 
@@ -126,7 +136,7 @@ def thin_digest() -> DigestData:
         ),
     )
     return DigestData(
-        period_start=_BASE, period_end=_BASE.replace(day=_BASE.day + 6),
+        period_start=_BASE, period_end=_BASE + timedelta(days=6),
         total_events=4, item_count=2, noise_count=2, graphrag=True,
         weak_signals=weak, referenced_event_ids=(1, 2), noise=_noise_items(),
         **_empty_sections(),
@@ -134,7 +144,11 @@ def thin_digest() -> DigestData:
 
 
 def converging_digest() -> DigestData:
-    """A genuine convergence: one entity across three named independent publishers."""
+    """A genuine convergence: one entity across three named independent publishers.
+
+    All three items carry the **same** `driver_uid` — that shared driving entity is what makes them
+    a cluster (task 010). Items converging on *different* entities are a list, not a convergence.
+    """
     why = ("On-device agent runtimes are moving from research to shipping — three independent "
            "publishers touched the same stack in one week.")
     pubs3 = ("VentureBeat", "The Register", "arXiv")
@@ -148,6 +162,7 @@ def converging_digest() -> DigestData:
             why_it_matters=why,
             graph_why="edges grew across 3 independent publishers in 6 days", graph_score=0.87,
             convergence=3, contributing_sources=pubs3, published_offset_days=1,
+            driver=DRIVER, driver_uid=DRIVER_UID,
         ),
         _item(
             11, title="Two new GitHub repos wrap the same on-device agent runtime",
@@ -158,6 +173,7 @@ def converging_digest() -> DigestData:
             why_it_matters="Code ships before blog posts — an early convergence indicator.",
             graph_why="same entity, distinct sources", graph_score=0.74,
             convergence=3, contributing_sources=pubs3, published_offset_days=3,
+            driver=DRIVER, driver_uid=DRIVER_UID,
         ),
         _item(
             12, title="Preprint benchmarks on-device agents against cloud agents",
@@ -168,11 +184,13 @@ def converging_digest() -> DigestData:
             why_it_matters="Independent academic corroboration of the same shift.",
             graph_why="research node joins the same cluster", graph_score=0.69,
             convergence=3, contributing_sources=pubs3, published_offset_days=5,
+            driver=DRIVER, driver_uid=DRIVER_UID,
         ),
     )
     return DigestData(
-        period_start=_BASE, period_end=_BASE.replace(day=_BASE.day + 6),
+        period_start=_BASE, period_end=_BASE + timedelta(days=6),
         total_events=5, item_count=3, noise_count=2, graphrag=True,
         weak_signals=weak, referenced_event_ids=(10, 11, 12), noise=_noise_items(),
+        weak_driver=DRIVER,
         **_empty_sections(),
     )

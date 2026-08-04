@@ -70,6 +70,16 @@ Three states, always distinguishable in the output:
 - **Inferred** — reasoned from verified facts; say what the inference rests on.
 - **Assumed** — not checked. Say so, and say what would check it.
 
+**Recorded test baselines are re-verifiable claims, not facts.**
+
+> **Failure it prevents:** "174 passed, 1 skipped, 0 failed" was carried across four sessions as a
+> settled number. D-022 found the fixtures were **date-dependent** and the suite would have failed on
+> the last days of any month. The baseline was a calendar artefact, and this repo has been bitten by
+> fixture time-rot before (D-004/D-005).
+
+Re-run before citing a count. A number inherited from a previous session is `assumed`, not
+`verified`, however many times it has been repeated.
+
 Never let an inference inherit the confidence of a fact. This is the same
 fact-versus-interpretation invariant the product enforces on its own outputs; it applies to the
 agents building it.
@@ -99,6 +109,24 @@ D-006 stray-database incident.
 
 When an analysis corrects an earlier decision, append a correcting entry rather than editing the
 original — the log is append-only, and being wrong earlier is part of the record.
+
+## 7. No git write operations from a sandboxed or mounted environment
+
+> **Failure it prevents:** the Cowork session reaches this repo through a Linux VM mount. It ran
+> `git add` / `git commit`, could not unlink its own `.git/index.lock`, and left a stale lock the
+> host could not attribute to any running process. Claude Code correctly diagnosed "a Docker/Linux VM
+> held an fd on `.git/index.lock`" and flagged it as a recurring hazard — without being able to see
+> that the cause was another agent in the same conversation.
+
+A session working through a mount may **read** git freely — `log`, `status`, `diff`, `show` are all
+fine and often essential. It must not run anything that takes the index lock: `add`, `commit`,
+`checkout`, `stash`, `rm`, `mv`, `merge`, `rebase`.
+
+Staging and committing belong to the session running natively on the host. A mounted session's
+contribution ends at **files written**; it hands over the commit message rather than the commit.
+
+If a stale lock appears, `rm -f .git/index.lock` clears it — but check first that no git process is
+genuinely running, and remember that "no process on the host" does not mean "no process".
 
 ---
 

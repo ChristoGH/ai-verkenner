@@ -82,6 +82,10 @@ class DigestItem:
     graph_score: float
     convergence: int
     contributing_sources: tuple[str, ...]
+    # The driving entity behind this item's convergence (`GraphSignal.driver`). `driver_uid` is the
+    # normalised identity and the ONLY grouping key — the display name is never grouped on.
+    driver: str = ""
+    driver_uid: int | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +111,10 @@ class DigestData:
     # Kept so the M7.5 Noise Report can name them, not just count them. Same `is_noise` predicate,
     # same hype polarity — not a ranking change.
     noise: tuple[DigestItem, ...]
+    # The driving entity NAME shared by every item in `weak_signals`, when a coherent cluster was
+    # found (see `coherent_cluster`). Empty string = no coherent cluster; `weak_signals` is then the
+    # quiet-week quadrant and NO convergence may be claimed about it.
+    weak_driver: str = ""
 
 
 def _representative(session: Session, enriched: EnrichedItem) -> RawItem | None:
@@ -155,6 +163,8 @@ def build_items(
                 contributing_sources=tuple(
                     dashboard_service._contributing_sources(session, e.event_id, sig)
                 ),
+                driver=sig.driver if sig else "",
+                driver_uid=sig.driver_uid if sig else None,
             )
         )
     return out
@@ -180,6 +190,37 @@ def _rank_weak(items: list[DigestItem], limit: int) -> tuple:
     return tuple(sorted(items, key=lambda it: (-it.graph_score, -salience(it)))[:limit])
 
 
+def coherent_cluster(
+    items: list[DigestItem], *, min_items: int
+) -> tuple[tuple[DigestItem, ...], str]:
+    """The largest group of items converging on **one shared driving entity**, plus its name.
+
+    `convergence > 0` is a **per-item** property: *this* item's own driver crossed
+    `>= GRAPH_MIN_SOURCES` distinct sources. Filtering on it alone collects items that each converge
+    on a *different, unrelated* entity and presents them as one cluster — the M7.5 defect. Membership
+    therefore requires a shared `driver_uid`: the normalised entity identity, never the display name.
+
+    The `>= GRAPH_MIN_SOURCES` rule is already carried by `convergence > 0` (the contribution is
+    floored to zero below it in `scoring.graph_signals`), so it is inherited here, not re-derived.
+
+    Returns `((), "")` when no group reaches `min_items` — the honest "no coherent cluster" answer.
+    Ties break on group size, then summed graph score, then lowest uid, so the result is stable.
+    """
+    groups: dict[int, list[DigestItem]] = {}
+    for it in items:
+        if it.convergence > 0 and it.driver_uid is not None:
+            groups.setdefault(it.driver_uid, []).append(it)
+    if not groups:
+        return (), ""
+    _uid, best = max(
+        groups.items(),
+        key=lambda kv: (len(kv[1]), sum(it.graph_score for it in kv[1]), -kv[0]),
+    )
+    if len(best) < min_items:
+        return (), ""
+    return tuple(best), best[0].driver
+
+
 def build_sections(
     items: list[DigestItem],
     signals: Mapping[int, GraphSignal],
@@ -189,8 +230,14 @@ def build_sections(
     graphrag: bool,
     period_start: datetime | None,
     period_end: datetime | None,
+    weak_cluster_min_items: int | None = None,
 ) -> DigestData:
     """Route the period's DigestItems into the ten sections (pure)."""
+    from app.core.config import settings
+
+    if weak_cluster_min_items is None:
+        weak_cluster_min_items = settings.weak_cluster_min_items
+
     noise = [it for it in items if is_noise(it, high_hype=high_hype)]
     body = [it for it in items if not is_noise(it, high_hype=high_hype)]
 
@@ -199,13 +246,13 @@ def build_sections(
     should_read = _rank([it for it in body if it.priority_class == "operational_update"],
                         signals, section_limit)
 
-    # Weak signals: the horizon quadrant. Prefer the genuinely converging ones — `convergence > 0`
-    # is set only when the hub-dampened contribution fires (>= GRAPH_MIN_SOURCES distinct sources),
-    # so it excludes items that merely have a recency nudge. If none converged (or Neo4j is down),
-    # fall back to the whole quadrant by hype-aware salience.
+    # Weak signals: the horizon quadrant. A convergence may be claimed only for items converging on
+    # the SAME driving entity (`coherent_cluster`) — the old `convergence > 0` filter was per-item
+    # and collected items converging on unrelated entities. When no coherent cluster survives (or
+    # Neo4j is down), fall back to the whole quadrant by hype-aware salience and claim nothing.
     quadrant = [it for it in items if it.priority_class in HORIZON_CLASSES]
-    converging = [it for it in quadrant if it.convergence > 0]
-    weak_signals = _rank_weak(converging or quadrant, section_limit)
+    cluster, weak_driver = coherent_cluster(quadrant, min_items=weak_cluster_min_items)
+    weak_signals = _rank_weak(list(cluster) or quadrant, section_limit)
 
     research_radar = _rank(
         [it for it in body if it.source_type in _RESEARCH_TYPES or _has_kw(it, _RESEARCH_KW)],
@@ -252,6 +299,7 @@ def build_sections(
         suggested_experiments=suggested_experiments,
         referenced_event_ids=tuple(referenced),
         noise=tuple(noise),
+        weak_driver=weak_driver,
     )
 
 
