@@ -1,6 +1,26 @@
 # Task 012 (M8 calibration) — Decouple `strategic_potential` from `relevance`
 
-**Status: NOT STARTED** — raised by [D-018](../docs/DECISIONS.md), which corrects D-014.
+**Status: ✅ CLOSED — ATTEMPT 2 ACCEPTED (2026-08-04, [D-057](../docs/DECISIONS.md)).** Raised by
+[D-018](../docs/DECISIONS.md), which corrects D-014.
+
+All six scope points are implemented and the same 45-item sample has been re-measured under each.
+**The quadrant is reachable for the first time — `rel ≤ 2 AND sp ≥ 4` went 0 → 2 and
+`horizon_signal` is non-zero (2) — but `r` is 0.693, not below 0.5**, the named regression fixture
+(event 54, *Inkling*) still missed at `rel 2 / sp 3`, and `relevance` / `actionability` reach 4
+nowhere. Three of five acceptance criteria unmet, so the stop condition applies: reported, **not
+iterated a third time**. Full numbers, the gap distribution, the 10-item hand spot-check, the cost
+and the reading are in [`docs/m8-calibration-notes.md`](../docs/m8-calibration-notes.md); the ruling
+needed is [D-056](../docs/DECISIONS.md).
+
+Two things the ruling should weigh: attempt 1's **`relevance` anchors now over-demote** stack-adjacent
+items (so part of the quadrant's reachability was bought there, and fixing it would *raise* `r`), and
+on this sample **`r` may be the wrong instrument** — it is held up by items that genuinely belong on
+the diagonal, while quadrant occupancy and the `sp − rel` gap (0 → 4 items) both moved. The
+criterion was **not** changed to fit the result.
+
+Earlier context: [D-045](../docs/DECISIONS.md) corrects D-018's "6 items would become
+`horizon_signal`" to **0**; [D-046](../docs/DECISIONS.md) is attempt 1's stop;
+[D-049](../docs/DECISIONS.md) authorised scope point 6.
 
 ## Goal
 
@@ -43,6 +63,22 @@ The same text is mirrored in `backend/app/enrichment/fallback.py:25`.
 4. **Add one worked few-shot example** of a low-relevance / high-strategic item, with the reasoning
    made explicit.
 5. Mirror any wording change into `backend/app/enrichment/fallback.py:25` so the two do not drift.
+6. **Re-frame `strategic_potential`'s frame of reference** (ADDED 2026-08-04 by
+   [D-049](../docs/DECISIONS.md), after attempt 1 hit the stop condition).
+
+   Attempt 1 implemented points 1–5 and `r` fell only 0.889 → 0.749. The measured cause is deeper
+   than D-018's tiebreaker: **`strategic_potential`'s own anchors are conditioned on the user's
+   current stack** — a 3 is "a credible alternative to something already in the stack", a 4 is a
+   shift "in an area they build in". That is precisely what `relevance` measures, so the two axes
+   are collinear **by definition** and no tiebreaker rewrite can reach it.
+
+   Redefine `strategic_potential` against **the shape of the problem space Christo works in** —
+   agentic pipelines, retrieval and knowledge graphs, evaluation and traceability, trust-sensitive
+   domains — **not** the contents of his current stack. An item can be irrelevant to today's code and
+   still reshape the problem within a year; that combination is the product's entire purpose.
+
+   **Regression fixture:** event 54 (Inkling — open-weights 975B under Apache-2.0), scored
+   `rel 2 / sp 3` in attempt 1, is the textbook quadrant item and should land at `rel 1–2 / sp 4–5`.
 
 ## Non-goals
 
@@ -55,10 +91,20 @@ The same text is mirrored in `backend/app/enrichment/fallback.py:25`.
 
 - A/B on a **held-out sample of ≥40 items** re-enriched under the new prompt, compared to their
   existing scores:
-  - **r(relevance, strategic_potential) drops below 0.5.**
-  - At least one item lands at `relevance <= 2 AND strategic_potential >= 4` — i.e. the quadrant is
-    demonstrably reachable.
-  - `relevance` and `actionability` each reach ≥4 on at least one item (top of scale in use).
+  - ~~**r(relevance, strategic_potential) drops below 0.5.**~~ **AMENDED by
+    [D-057](../docs/DECISIONS.md) — `r` is now a REPORTED DIAGNOSTIC, not a gate.** It is a
+    population statistic and was being used to measure a tail property; ~33 of the 45 sampled items
+    genuinely belong on the diagonal, so forcing population `r` down would make the scores *less*
+    truthful. Report it; do not gate on it.
+  - **GATE: quadrant occupancy — at least one item at `relevance <= 2 AND strategic_potential >= 4`.**
+    (Attempt 2: **2**. ✅)
+  - **GATE: at least three items at `strategic_potential >= relevance + 2`.** (Attempt 2: **4**. ✅)
+  - ~~`relevance` and `actionability` each reach ≥4 on at least one item.~~ **Carried to
+    [Task 015](015-relevance-anchor-recalibration.md)** — attempt 2 showed the relevance anchors now
+    over-demote, which is a separate defect on a separate axis.
+  - ~~Event 54 (Inkling) lands in the quadrant.~~ **DROPPED as a hard criterion (D-057)** — its
+    "correct" score was asserted without hand-verification; a 3-vs-4 disagreement on one item is not
+    evidence of failure.
 - Scores remain defensible per item — spot-check 10 by hand; calibration must not become inflation.
 - The hype inversion is unchanged and still correct on every sampled item.
 - Cost of the sample run recorded in the session notes.
@@ -124,4 +170,64 @@ third attempt means the hypothesis is wrong and the cause is elsewhere.
 
 Append D-NNN entries to docs/DECISIONS.md for every unasked choice; overwrite
 HANDOFF.md at session end.
+```
+
+---
+
+## Agent prompt — ATTEMPT 2 (scope point 6) · paste-ready
+
+```
+Read HANDOFF.md, then CLAUDE.md, then docs/AGENT_ADDENDUM.md, then
+docs/m8-calibration-notes.md, then docs/DECISIONS.md entries D-045, D-046 and D-049,
+then tasks/012-enrichment-score-calibration.md. All binding.
+
+Attempt 1's work (scope points 1-5) is ACCEPTED and stays. The stop condition fired
+correctly and your diagnosis was right. Implement SCOPE POINT 6 ONLY.
+
+THE DIAGNOSIS YOU ESTABLISHED, NOW AUTHORISED AS THE FIX (D-049)
+strategic_potential's anchors are conditioned on the user's CURRENT STACK — a 3 is
+"a credible alternative to something already in the stack", a 4 is a shift "in an area
+they build in". That is what relevance measures. The axes are collinear BY DEFINITION,
+which is why r only moved 0.889 -> 0.749 and no item reached rel <= 2 AND sp >= 4.
+
+WORK: redefine strategic_potential in prompts/classify_item.md against THE SHAPE OF THE
+PROBLEM SPACE Christo works in — agentic pipelines, retrieval and knowledge graphs,
+evaluation and traceability, trust-sensitive domains — NOT the contents of his current
+stack. Rewrite its 0-5 anchors on that basis. Make explicit that an item can be
+irrelevant to today's code and still reshape the problem within a year, and that this
+combination is the product's entire purpose, not an error. Mirror into fallback.py;
+keep the pinning test green.
+
+REGRESSION FIXTURE: event 54 (Inkling, open-weights 975B under Apache-2.0) scored
+rel 2 / sp 3 in attempt 1. It is the textbook quadrant item and should land at
+rel 1-2 / sp 4-5. Pin it.
+
+MEASURE: re-run the sample. Use THE SAME 45 ITEMS as attempt 1 so the comparison is
+clean, and say so. Report r, per-axis min/max, quadrant-qualifying count, and the
+event-54 result. Append to docs/m8-calibration-notes.md — do not overwrite attempt 1's
+numbers; both runs stay on the record.
+
+COST GATE: ~$1.40 for the sample is APPROVED. Do NOT re-enrich the full 246-item
+corpus — that is still a separate decision.
+
+CONSTRAINTS
+- No new axes, no renaming, no re-ranging, no change to the hype inversion.
+- priority.py UNTOUCHABLE (D-014).
+- Calibration must not become inflation. Hand spot-check 10 items and paste the
+  reasoning; if the spread looks bought with inflation, say so plainly.
+- Keep flagging sampling artefacts as you did in attempt 1 — the stratification caveat
+  was correct and material.
+
+ACCEPTANCE: r < 0.5 on the sample; >= 1 item at rel <= 2 AND sp >= 4; relevance and
+actionability each reach >= 4 somewhere; event 54 in the quadrant; suite green
+(re-verify the baseline yourself — the tree holds several sessions' interleaved work).
+
+STOP CONDITION UNCHANGED: if r still does not clear 0.5, STOP and report. Do not
+iterate a third time. At that point the hypothesis is exhausted and the next move is
+Christo's — the honest answer may be that the quadrant needs a threshold conversation
+that D-014's standing ruling currently forbids.
+
+Coordinate decision numbers before appending to docs/DECISIONS.md — concurrent sessions
+have already collided once (D-028..D-036). Highest currently in the log is D-049. Merge
+your status into HANDOFF.md rather than overwriting other sessions' entries.
 ```

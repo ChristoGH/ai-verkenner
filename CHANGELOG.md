@@ -3,6 +3,59 @@
 Notable changes per task/milestone. Newest first. History lives in git; this file records *what
 changed and why it mattered*, at the granularity of a task file.
 
+## Task 012 — Enrichment score calibration: decoupling `strategic_potential` from `relevance` (2026-08-04)
+
+**The `horizon_signal` quadrant is reachable for the first time — and the acceptance metric still
+says no.** Two attempts, both measured on the same 45-item held-out sample, both recorded in
+[`docs/m8-calibration-notes.md`](docs/m8-calibration-notes.md).
+
+Raised by [D-018] (which corrects D-014): `horizon_signal` requires
+`strategic_potential >= relevance + 2`, and across 246 corpus items `strategic_potential` never
+exceeded `relevance + 1` bar one. The quadrant was structurally unreachable — the priority rule was
+correct and the *scores* were the defect. `backend/app/scoring/priority.py` was never opened.
+
+### Changed — `prompts/classify_item.md` (+ its mirror in `enrichment/fallback.py`)
+
+- **Attempt 1 (scope points 1–5)** — the blanket downward tiebreaker on `relevance` removed (only
+  `hype` keeps one); 0–5 anchors on every axis with `4` and `5` defined explicitly; an explicit
+  decoupling instruction (score `strategic_potential` **first**, and `relevance 0–1` with
+  `strategic_potential 4–5` is a correct answer); one worked low-relevance / high-strategic example;
+  wording mirrored into `fallback.py` with a test pinning the mirror.
+- **Attempt 2 (scope point 6, authorised by [D-049])** — `strategic_potential` re-anchored on **the
+  shape of the problem space** (agentic pipelines · retrieval and knowledge graphs · evaluation and
+  traceability · trust-sensitive domains) instead of the contents of the current stack. The two
+  attempt-1 anchors that made the axis a restatement of `relevance` — "a credible alternative to
+  something already in the stack" and a shift "in an area they build in" — are gone, and a test
+  asserts they cannot return. The scoring section now states the two axes read **different
+  evidence**: `relevance` reads `user_context`, `strategic_potential` explicitly does not.
+
+### Measured (same 45 items, same seed, same model, same `USER_CONTEXT`)
+
+| Measure | Before | Attempt 1 | Attempt 2 | Target |
+|---|---|---|---|---|
+| `r(relevance, strategic_potential)` | 0.889 | 0.749 | **0.693** | < 0.5 ❌ |
+| items at `rel ≤ 2 AND sp ≥ 4` | 0 | 0 | **2** | ≥ 1 ✅ |
+| `horizon_signal` items | 0 | 0 | **2** | first time non-zero |
+| items at `sp ≥ rel + 2` | 0 | 0 | **4** | — |
+| `relevance` / `actionability` reach ≥ 4 | 1 / 0 | 0 / 0 | **0 / 0** | ≥ 1 ❌ |
+
+Three of five acceptance criteria are unmet and the named regression fixture (event 54, *Inkling* —
+open-weights 975B under Apache-2.0) **missed again** at `rel 2 / sp 3`. The stop condition fired and
+**no third iteration was attempted** ([D-056]). Calibration did not become inflation: relevance and
+novelty means fell again, `strategic_potential`'s mean is flat while its distribution spread both
+ways, and the hype inversion was correct on every sampled item. Cost: **$1.62** against ~$1.40
+approved, cause recorded ([D-055]); $3.04 across both attempts. Full-corpus re-enrichment remains
+unauthorised and was not run.
+
+### Open for Christo
+
+Part of the quadrant's reachability was bought by attempt 1's `relevance` anchors **over-demoting**
+stack-adjacent items — so fixing that would *raise* `r` while making both axes more truthful. On a
+45-item sample over compressed ranges, `r` is dominated by items that genuinely belong on the
+diagonal; quadrant occupancy and the `sp − rel` gap are the measures that track the product
+requirement, and both moved. Whether to replace the acceptance metric is a ruling, not a session
+decision — the criterion was left exactly as written.
+
 ## Task 011 — Source scope correction + fetch-health surfacing (2026-08-04)
 
 **Every enabled source is now either AI-scoped or knowingly whole-publication, and a source that
