@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
-from app.models import RawItem, Source
+from app.ingestion.orchestrator import SourceRunResult
+from app.models import RawItem, Source, SourceHealth
 from app.schemas.raw_item import RawItem as RawItemSchema
 from app.schemas.source import Source as SourceSchema
 from app.storage.hashing import content_hash, dedup_key
@@ -52,6 +53,60 @@ def upsert_sources(session: Session, sources: list[SourceSchema]) -> dict[str, i
         if row.id is not None:
             name_to_id[row.name] = row.id
     return name_to_id
+
+
+def upsert_source_health(
+    session: Session,
+    results: list[SourceRunResult],
+    *,
+    now: datetime | None = None,
+) -> dict[str, SourceHealth]:
+    """Record this run's per-source fetch outcome (task 011 defect 2). Returns {name: row}.
+
+    Upserted by source name, exactly like `upsert_sources`. The zero-yield streak is the only
+    stateful part: it increments on a run that delivered no items and resets to 0 on any run that
+    delivered at least one. `last_yield_at` therefore always answers "when did we last actually
+    hear from this source?" — which a plain success flag cannot, because an HTTP 200 that parses
+    to zero entries looks like a success.
+
+    Reporting only: this function records, it never disables or retries anything.
+    """
+    now = now or datetime.now(timezone.utc)
+    rows: dict[str, SourceHealth] = {}
+
+    for result in results:
+        row = session.exec(
+            select(SourceHealth).where(SourceHealth.source_name == result.source_name)
+        ).first()
+        if row is None:
+            row = SourceHealth(
+                source_name=result.source_name, source_type=result.source_type.value
+            )
+
+        row.source_type = result.source_type.value
+        row.last_run_at = now
+        row.last_fetched_count = result.fetched_count
+        row.last_item_count = result.item_count
+        row.last_new_count = result.new_count or 0
+        row.last_skipped_count = result.skipped_count
+        row.last_error = result.error
+        row.needs_token = result.needs_token
+        if result.ok:
+            row.last_ok_at = now
+        if result.item_count > 0:
+            row.last_yield_at = now
+            row.consecutive_zero_yield = 0
+        else:
+            row.consecutive_zero_yield += 1
+        row.updated_at = now
+
+        session.add(row)
+        rows[result.source_name] = row
+
+    session.commit()
+    for row in rows.values():
+        session.refresh(row)
+    return rows
 
 
 def persist_new_items(

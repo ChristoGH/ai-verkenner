@@ -267,6 +267,16 @@ Each would be recorded as an ADR before adoption.
 - **Preserve every source URL.** The URL is a first-class field on RawItem and survives into
   EnrichedItem, the dashboard, and the digest.
 - **Fail safely per source.** Ingestion isolates each source so one failure cannot abort a run.
+  **Isolation is not enough on its own:** a source that never yields is equally silent, so the
+  registry keeps claiming coverage the corpus does not have. `models.SourceHealth` records each
+  run's per-source outcome (fetched / kept / new / skipped / error, plus the consecutive
+  zero-yield streak); `python -m app.cli sources --health` lists every enabled source, and a
+  source yielding nothing for `SOURCE_ZERO_YIELD_WARN` consecutive runs is reported loudly in the
+  run summary. Reporting only — no retries, no backoff, no circuit breaker, no auto-disable
+  (task 011 / D-017, D-039). `app/ingestion/health.py` separates the four reasons a source shows
+  zero — `error` · `no-items` (a URL that does not serve a feed) · `stale-window` (healthy, but
+  quieter than `SOURCE_MAX_AGE_DAYS`) · `no-token` (a `github_*` source with no `GITHUB_TOKEN`,
+  skipped by ADR 0002 design) — because only the first two are faults (D-040).
 - **Fact vs. interpretation.** Enrichment outputs keep the source fact separate from the model's
   interpretation; the data model and prompts reflect this split.
 - **Scoring polarity / hype inversion.** Encoded in `scoring/` and honoured by ranking: hype is a

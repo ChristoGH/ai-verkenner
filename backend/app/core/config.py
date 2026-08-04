@@ -54,6 +54,12 @@ class Settings:
         # affordable. AGE skips items older than the window; ITEMS is a hard per-source backstop.
         self.source_max_age_days: int = int(os.getenv("SOURCE_MAX_AGE_DAYS", "30"))
         self.source_max_items: int = int(os.getenv("SOURCE_MAX_ITEMS", "40"))
+        # Fetch-health surfacing (task 011 defect 2 / D-017). A source that yields nothing across
+        # this many CONSECUTIVE runs is reported loudly at the end of every run. Reporting only —
+        # nothing retries, backs off, or auto-disables; the human decides. A registry that claims
+        # coverage the corpus does not have is a silent correctness failure in an early-warning
+        # system, so the fail-safe isolation invariant must not also make a dead source invisible.
+        self.source_zero_yield_warn: int = int(os.getenv("SOURCE_ZERO_YIELD_WARN", "3"))
 
         # Curated GitHub-intelligence fetchers (ADR 0002 — watched orgs/users/topics, NOT a crawler).
         # A token is required; without it, github_* sources are skipped (degrade, never crash).

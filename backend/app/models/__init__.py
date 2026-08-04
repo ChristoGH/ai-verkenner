@@ -17,10 +17,12 @@ from app.models.entities import (
     Relationship,
     RepoStarSnapshot,
     Source,
+    SourceHealth,
 )
 
 __all__ = [
     "Source",
+    "SourceHealth",
     "RawItem",
     "Event",
     "EnrichedItem",

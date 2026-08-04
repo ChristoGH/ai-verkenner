@@ -3,6 +3,7 @@
     python -m app.cli run                # ingest → SQLite + Qdrant → dedup → enrich → project (Neo4j)
     python -m app.cli run --no-enrich    # skip the enrichment step (M3 behaviour)
     python -m app.cli run --no-graph     # skip the Neo4j projection (M4 behaviour)
+    python -m app.cli sources --health   # per-source last fetch outcome + zero-yield streaks
     python -m app.cli enrich --backfill  # enrich Events an interrupted run left unenriched
     python -m app.cli enrich --backfill --dry-run --limit 10   # count candidates / cap the spend
     python -m app.cli reindex            # rebuild the Qdrant 'items' collection purely from SQLite
@@ -32,7 +33,8 @@ from app.digests import build_digest_data, generate_digest
 from app.embeddings import get_embedder
 from app.enrichment import Enricher, get_provider
 from app.graph import Neo4jGraphStore, graph_reindex
-from app.models import Digest, EnrichedItem, Event
+from app.ingestion.health import format_health_report, zero_yield_warnings
+from app.models import Digest, EnrichedItem, Event, SourceHealth
 from app.posts import generate_posts, weak_cluster
 from app.posts.image import export_convergence_image
 from app.posts.writer import write_outputs, write_vault_notes
@@ -68,6 +70,55 @@ def _cmd_run(args: argparse.Namespace) -> int:
     )
     if run.ingestion.failed:
         print(f"  per-source failures: {[r.source_name for r in run.ingestion.failed]}")
+    _print_zero_yield_warnings([s.name for s in enabled])
+    return 0
+
+
+def _print_zero_yield_warnings(enabled_names: list[str]) -> int:
+    """Report sources that have yielded nothing for N consecutive runs (task 011 defect 2).
+
+    Loud, and deliberately non-fatal: it prints after the run has already succeeded and returns a
+    count, never a non-zero exit. Surfacing is the job — nothing here retries or auto-disables.
+    """
+    with get_session() as session:
+        rows = [
+            row for row in session.exec(select(SourceHealth)).all()
+            if row.source_name in set(enabled_names)
+        ]
+    warnings = zero_yield_warnings(rows, zero_yield_warn=settings.source_zero_yield_warn)
+    if warnings:
+        print(
+            f"\n  !! {len(warnings)} source(s) have yielded NOTHING for "
+            f"{settings.source_zero_yield_warn}+ consecutive runs — the registry claims coverage "
+            f"the corpus does not have:"
+        )
+        for line in warnings:
+            print(line)
+        print("  see `python -m app.cli sources --health` for the full picture")
+    return len(warnings)
+
+
+def _cmd_sources(args: argparse.Namespace) -> int:
+    """`sources --health`: one line per ENABLED source with its last fetch outcome."""
+    init_db()
+    result = load_sources_from_settings()
+    enabled = [s for s in result.sources if s.enabled]
+    for error in result.errors:
+        print(f"registry problem — {error}")
+
+    if not args.health:
+        print(f"sources: {len(result.sources)} entries, {len(enabled)} enabled, "
+              f"{len(result.errors)} problem(s). Use --health for per-source fetch outcomes.")
+        return 0
+
+    names = [s.name for s in enabled]
+    with get_session() as session:
+        rows_by_name = {
+            row.source_name: row for row in session.exec(select(SourceHealth)).all()
+        }
+    print(format_health_report(
+        names, rows_by_name, zero_yield_warn=settings.source_zero_yield_warn
+    ))
     return 0
 
 
@@ -241,6 +292,14 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run", action="store_true", help="report the candidate count and exit; enrich nothing",
     )
     enrich_parser.set_defaults(func=_cmd_enrich)
+    sources_parser = sub.add_parser(
+        "sources", help="registry status; --health shows each source's last fetch outcome"
+    )
+    sources_parser.add_argument(
+        "--health", action="store_true",
+        help="one line per enabled source: last yield, counts, and zero-yield streak",
+    )
+    sources_parser.set_defaults(func=_cmd_sources)
     sub.add_parser("reindex", help="rebuild Qdrant from SQLite").set_defaults(func=_cmd_reindex)
     sub.add_parser(
         "graph-reindex", help="rebuild Neo4j from SQLite"

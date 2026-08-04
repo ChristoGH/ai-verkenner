@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.ingestion.fetchers import FETCHERS, Fetcher
+from app.ingestion.fetchers.github_intelligence import needs_github_token
 from app.schemas.raw_item import RawItem
 from app.schemas.source import Source, SourceType
 
@@ -58,13 +59,42 @@ def apply_recency_cap(
 
 @dataclass
 class SourceRunResult:
-    """Per-source outcome of a run."""
+    """Per-source outcome of a run (task 011 defect 2: fetched / new / skipped / error).
+
+    The counts are deliberately distinct, because "this source contributed 0 rows" has several
+    very different causes and conflating them is the blind spot Task 011 exists to close:
+
+    * `fetched_count` — what the fetcher returned, before any capping. 0 here means the feed
+      itself gave us nothing (dead URL, an HTML page that parses to no entries, or a token-gated
+      source skipped for want of GITHUB_TOKEN — see `needs_token`).
+    * `item_count`    — what survived the recency cap and was handed to storage. `fetched_count`
+      high but `item_count` 0 means the source is healthy and simply publishes less often than
+      SOURCE_MAX_AGE_DAYS; that is not a broken source.
+    * `new_count`     — rows actually persisted to SQLite. Filled in by the storage pipeline
+      after `persist_new_items`; it stays None for a bare `run_ingestion` with no persistence.
+    * `skipped_count` — items seen but not stored: dropped by the cap, or already in SQLite.
+    * `needs_token`   — the source is token-gated and the token is absent. Skipped, not broken.
+    """
 
     source_name: str
     source_type: SourceType
     ok: bool
     item_count: int = 0
     error: str | None = None
+    fetched_count: int = 0
+    new_count: int | None = None
+    needs_token: bool = False
+
+    @property
+    def skipped_count(self) -> int:
+        """Fetched but not stored — capped away, or already present in SQLite."""
+        stored = self.item_count if self.new_count is None else self.new_count
+        return max(self.fetched_count - stored, 0)
+
+    @property
+    def zero_yield(self) -> bool:
+        """Nothing reached storage this run — the condition the health warning counts."""
+        return self.item_count == 0
 
 
 @dataclass
@@ -106,13 +136,18 @@ def run_ingestion(
         if not source.enabled:
             continue
 
+        # A token-gated source with no token is SKIPPED by design, not broken — record the reason
+        # so the health view never sends the human to fix a URL that is fine.
+        token_gated = needs_github_token(source)
+
         fetcher = registry.get(source.source_type)
         if fetcher is None:
             # Should be unreachable (registry covers every SourceType), but fail safe anyway.
             message = f"no fetcher registered for source_type '{source.source_type.value}'"
             logger.warning("source '%s': %s", source.name, message)
             run.results.append(
-                SourceRunResult(source.name, source.source_type, ok=False, error=message)
+                SourceRunResult(source.name, source.source_type, ok=False, error=message,
+                                needs_token=token_gated)
             )
             continue
 
@@ -124,7 +159,8 @@ def run_ingestion(
             )
             run.results.append(
                 SourceRunResult(
-                    source.name, source.source_type, ok=False, error=f"{type(exc).__name__}: {exc}"
+                    source.name, source.source_type, ok=False, error=f"{type(exc).__name__}: {exc}",
+                    needs_token=token_gated,
                 )
             )
             continue
@@ -134,7 +170,8 @@ def run_ingestion(
         run.items.extend(items)
         run.results.append(
             SourceRunResult(
-                source.name, source.source_type, ok=True, item_count=len(items)
+                source.name, source.source_type, ok=True, item_count=len(items),
+                fetched_count=fetched, needs_token=token_gated,
             )
         )
         if len(items) != fetched:

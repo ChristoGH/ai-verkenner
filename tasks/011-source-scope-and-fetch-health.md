@@ -1,6 +1,37 @@
 # Task 011 — Source scope correction + fetch-health surfacing
 
-**Status: NOT STARTED** — raised by [D-017](../docs/DECISIONS.md) (source registry audit, 2026-08-03).
+**Status: ✅ ACCEPTED AT THE REVIEW GATE, 2026-08-04** ([D-050](../docs/DECISIONS.md)). Raised by
+[D-017](../docs/DECISIONS.md) (source registry audit, 2026-08-03). Decisions from the implementing
+session: [D-037](../docs/DECISIONS.md) … [D-041](../docs/DECISIONS.md); criterion amended by
+[D-048](../docs/DECISIONS.md).
+
+> **Both defects verified independently at the gate** — against live fetches and a copy of the
+> corpus, not against the implementing session's report.
+>
+> - All four replacement/fixed URLs return well-formed, on-topic feeds at the claimed counts
+>   (Register **50**, MIT TR **10**, HN **20**, LangChain **100**). Defect-1 blocks match the task
+>   file verbatim; no unauthorised registry entry touched.
+> - A live 26-source health run classified **zero sources as `no-items`** — the genuinely-broken
+>   state — which is the direct evidence the dead-URL cases are resolved. `stale-window` matched
+>   exactly the four sources D-041 named; `no-token` captured all seven `github_*` sources with
+>   their own reason; 11 zero-yield warnings printed **non-fatally** after a successful run.
+> - `test_source_health.py` 10/10 (all four named tests present); Task 011's blast radius 56/56;
+>   full suite **215 passed / 1 skipped / 0 failed**.
+> - The corpus baseline `data/dev_corpus.db` was **not** mutated by this review (verification ran
+>   against a copy) — Task 012's measurement baseline is intact.
+>
+> **One gap found and closed at the gate:** D-048's amended criterion requires every retained
+> zero-yield source to have *its cadence recorded*; only two of the four did. Cadence comments were
+> added for `Qdrant Releases` and `VentureBeat AI` (D-050).
+>
+> **New finding — `VentureBeat AI` needs watching.** It parses cleanly but its newest item is dated
+> **2026-05-19**, 2.5 months stale for a daily publisher. That reads like a feed that stopped
+> updating rather than low cadence. Left enabled with a dated watch-note in the YAML; if it is
+> still frozen at the next review it is a dead feed.
+>
+> **Inherited, not resolved here:** the `SOURCE_MAX_AGE_DAYS` env/docs drift (**7** effective vs
+> **30** documented) is a tuning call for Christo (D-048). Renaming a source orphans its
+> `source_health` row, so the three renamed feeds start their history fresh.
 
 Two defects found in the same audit. Both are cheap; together they remove ~7% of corpus noise and
 close a fail-safe blind spot.
@@ -139,7 +170,17 @@ coverage the corpus does not have, which is a silent correctness failure in an e
 - `sources --health` lists every enabled source with its last outcome.
 - A source yielding 0 for ≥3 consecutive runs is flagged in the run summary.
 - A fetch failure still never aborts the run (existing invariant, add a regression test).
-- Every one of the eight sources is either fixed or explicitly disabled with a stated reason.
+- ~~Every one of the eight sources is either fixed or explicitly disabled with a stated reason.~~
+  **AMENDED 2026-08-04 by [D-048](../docs/DECISIONS.md)** — the original wording was wrong. Disabling
+  a working source because a 7-day window outran its publishing cadence would delete real coverage to
+  satisfy a metric. Corrected criterion: **every zero-yield source is either fixed, disabled with a
+  stated reason, or explicitly retained with its cadence recorded.** The implementing session's
+  substance-not-literal reading is **accepted**; the two retained sources stay enabled.
+- **Note the premise correction ([D-041](../docs/DECISIONS.md)):** the effective `SOURCE_MAX_AGE_DAYS`
+  is **7**, not the documented 30, and that cap — not broken feeds — is the dominant cause of zero
+  yield. D-017's "eight silent sources" is superseded and must not be cited as fact. The env/docs
+  drift is itself a defect: every window-dependent conclusion in this repo silently depends on this
+  value, so record the effective number wherever a window-dependent measurement is reported.
 
 ### Test plan
 
@@ -148,6 +189,21 @@ coverage the corpus does not have, which is a silent correctness failure in an e
 - `test_health_lists_all_enabled_sources`
 - `test_github_sources_report_missing_token_distinctly` — a missing token reads as "needs
   `GITHUB_TOKEN`", not "broken feed".
+
+**Delivered** in `backend/tests/test_source_health.py` — all four, plus six that pin the
+distinctions the defect turns on: streak reset, `stale-window` vs `no-items`, the separate
+fetched/kept/new/skipped counts, and a parametrised threshold check.
+
+### Outcome (2026-08-04)
+
+| source | verified ground truth | action |
+|---|---|---|
+| Anthropic News | HTML page; 200 → 0 entries. 7 candidate feed paths probed, all 404 | **disabled** + inline reason ([D-038](../docs/DECISIONS.md)) |
+| LangChain Blog | `blog.langchain.dev/rss/` 302s to HTML; feed moved | **URL fixed** → `www.langchain.com/blog/rss.xml` (100 entries) |
+| Neo4j Releases | GitHub Releases dead since 2017-09-15; repo is tagged, not released | **disabled** + inline reason ([D-038](../docs/DECISIONS.md)) |
+| LlamaIndex Releases | healthy: 30 releases, newest 2026-06-24 — outside a 7-day window | **left enabled**, reports `stale-window` ([D-037](../docs/DECISIONS.md)) |
+| Eugene Yan | healthy: 212 entries, newest 2026-06-21 — outside a 7-day window | **left enabled**, reports `stale-window` ([D-037](../docs/DECISIONS.md)) |
+| `github_star_velocity` ×2, `github_advisories` ×2, `github_new_repos` ×2, `github_changes` | `GITHUB_TOKEN` not set → skipped by ADR 0002 design | reported as `no-token`, distinctly |
 
 ## Files likely to change
 

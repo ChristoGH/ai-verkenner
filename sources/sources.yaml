@@ -24,6 +24,11 @@
 # They require GITHUB_TOKEN; without it they are skipped (degrade, never crash). Implemented in M6.5.
 #
 # A per-source recency cap (SOURCE_MAX_AGE_DAYS / SOURCE_MAX_ITEMS) bounds archive-serving feeds.
+# That cap is also the most common reason a source shows zero rows (task 011 defect 2): a healthy
+# feed that publishes less often than the window contributes nothing without being broken. Run
+# `python -m app.cli sources --health` before concluding a source is dead — it separates
+# `stale-window` (fine) from `no-items` (a URL that does not serve a feed), `error`, and
+# `no-token` (a github_* source with no GITHUB_TOKEN — skipped by design).
 
 sources:
   # ---- Frontier labs ----
@@ -33,10 +38,16 @@ sources:
     enabled: true
     trust_level: high
 
+  # DISABLED 2026-08-04 (task 011 defect 2 / D-017). The url below is an HTML page, not a feed:
+  # it returns HTTP 200 and parses to ZERO entries, so the source looked healthy while
+  # contributing nothing. Anthropic publishes no RSS/Atom for /news — probed 2026-08-04 and all
+  # 404: /news.rss, /news/feed, /rss.xml, /news/rss.xml, /feed.xml, /atom.xml, /news/index.xml.
+  # (status.anthropic.com/history.rss exists but is incident history, a DIFFERENT source — using
+  # it here would be a substitution, not a fix.) Re-enable the day a real feed appears.
   - name: Anthropic News
     source_type: rss
     url: https://www.anthropic.com/news
-    enabled: true
+    enabled: false
     trust_level: high
 
   - name: Google DeepMind Blog
@@ -59,13 +70,20 @@ sources:
     trust_level: medium
 
   # ---- AI app frameworks ----
+  # URL FIXED 2026-08-04 (task 011 defect 2 / D-017). The blog moved to langchain.com and the old
+  # blog.langchain.dev/rss/ now 302s to an HTML page — HTTP 200, zero entries, silently no rows.
+  # Verified: the url below returns 100 entries.
   - name: LangChain Blog
     source_type: rss
-    url: https://blog.langchain.dev/rss/
+    url: https://www.langchain.com/blog/rss.xml
     enabled: true
     trust_level: medium
 
   # LlamaIndex's blog RSS 404s; track its releases instead (reliable, same signal source).
+  # HEALTHY but low-cadence — D-017 listed it as zero-yield; the audit was verified 2026-08-04 and
+  # the cause is NOT this entry: 30 releases fetch fine, the newest (v0.14.23, 2026-06-24) is
+  # simply older than SOURCE_MAX_AGE_DAYS. Left enabled deliberately; `sources --health` now
+  # reports this as `stale-window`, not as a broken source.
   - name: LlamaIndex Releases
     source_type: github_releases
     url: https://github.com/run-llama/llama_index/releases
@@ -75,6 +93,10 @@ sources:
     trust_level: medium
 
   # ---- Data / vector / graph infrastructure ----
+  # RETAINED, cadence recorded (task 011 acceptance, D-048/D-050). Named by D-041 as zero-yield and
+  # never covered by D-017's list. Verified 2026-08-04: 30 releases fetch fine, newest v1.18.3
+  # (2026-07-17) — a normal gap for a release feed, simply older than a 7-day window. Reports
+  # `stale-window`, not broken.
   - name: Qdrant Releases
     source_type: github_releases
     url: https://github.com/qdrant/qdrant/releases
@@ -83,12 +105,17 @@ sources:
     enabled: true
     trust_level: high
 
+  # DISABLED 2026-08-04 (task 011 defect 2 / D-017). neo4j/neo4j stopped publishing GitHub
+  # Releases in 2017 — verified 2026-08-04: the newest release is 3.3.0-beta01 (2017-09-15), while
+  # the repo is actively TAGGED (2026.06.0, 2026.05.0, ...). The github_releases fetcher reads
+  # /releases, so this entry can never yield, regardless of the recency window. Re-enabling needs
+  # a tags-based fetcher, which no task file calls for.
   - name: Neo4j Releases
     source_type: github_releases
     url: https://github.com/neo4j/neo4j/releases
     repo_owner: neo4j
     repo_name: neo4j
-    enabled: true
+    enabled: false
     trust_level: medium
 
   # ---- Research (arXiv) ----
@@ -122,27 +149,37 @@ sources:
     enabled: true
     trust_level: high
 
+  # RETAINED, cadence recorded (task 011 acceptance, D-048/D-050) — but WATCH THIS ONE. Named by
+  # D-041 as zero-yield and never covered by D-017's list. Verified 2026-08-04: the feed parses and
+  # returns 7 entries, but the newest is dated 2026-05-19 — 2.5 months for a daily publisher, which
+  # reads more like a feed that stopped updating than like low cadence. Left enabled because it
+  # fetches cleanly and disabling on suspicion would delete coverage; `sources --health` will show
+  # it as `stale-window` every run. If it is still frozen at 2026-05-19 by the next review, it is a
+  # dead feed and needs a URL fix or a disable.
   - name: VentureBeat AI
     source_type: rss
     url: https://venturebeat.com/category/ai/feed/
     enabled: true
     trust_level: medium
 
-  - name: MIT Technology Review
+  # Topic-scoped, not site-wide (task 011 defect 1 / D-017): the whole-publication feeds of these
+  # three carried every off-topic item in the 266-item audit. Scope lives in the URL, not the
+  # classifier.
+  - name: MIT Technology Review — AI
     source_type: rss
-    url: https://www.technologyreview.com/feed/
+    url: https://www.technologyreview.com/topic/artificial-intelligence/feed/
     enabled: true
     trust_level: high
 
-  - name: The Register
+  - name: The Register — AI/ML
     source_type: rss
-    url: https://www.theregister.com/headlines.atom
+    url: https://www.theregister.com/software/ai_ml/headlines.atom
     enabled: true
     trust_level: medium
 
-  - name: Hacker News (front page)
+  - name: Hacker News (AI/LLM, ≥100 points)
     source_type: rss
-    url: https://hnrss.org/frontpage
+    url: https://hnrss.org/newest?q=AI+OR+LLM+OR+GPT+OR+%22machine+learning%22&points=100
     enabled: true
     trust_level: low
 
@@ -153,6 +190,9 @@ sources:
     enabled: true
     trust_level: high
 
+  # HEALTHY but low-cadence — same finding as LlamaIndex Releases (task 011 defect 2, verified
+  # 2026-08-04): the feed serves 212 entries, the newest dated 2026-06-21, all outside the recency
+  # window. Not a broken source; left enabled and reported as `stale-window`.
   - name: Eugene Yan
     source_type: rss
     url: https://eugeneyan.com/rss/
