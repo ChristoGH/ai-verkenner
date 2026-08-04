@@ -34,6 +34,11 @@ from tests.posts_fixtures import (
 
 _WEAK_SURFACES = (SURFACE_X, SURFACE_LINKEDIN, SURFACE_MEDIUM)
 
+# Three publishers, so a cluster built from these items clears the selection floor added by task 013
+# defect C (`WEAK_DRIVER_MIN_SOURCES` = 3). These tests pin MEMBERSHIP — that a cluster requires one
+# shared driver — so their fixtures have to be selectable before membership can be observed at all.
+_PUBS = ("VentureBeat", "The Register", "MIT TR")
+
 
 def _one(bundle, surface, piece=PIECE_WEAK_SIGNAL):
     return next(d for d in bundle.drafts if d.surface == surface and d.piece == piece)
@@ -90,21 +95,22 @@ def test_mixed_drivers_do_not_converge():
 
 
 def test_shared_driver_converges():
-    """Two-plus items on the SAME driving entity are a real cluster, labelled with the entity."""
+    """Items on the SAME driving entity are a real cluster, labelled with the entity."""
     items = [
-        _converger(1, driver=DRIVER, driver_uid=DRIVER_UID, pubs=("VentureBeat", "The Register")),
-        _converger(2, driver=DRIVER, driver_uid=DRIVER_UID, pubs=("VentureBeat", "The Register")),
-        _converger(3, driver="Unrelated", driver_uid=999, pubs=("MIT TR", "Hacker News")),
+        _converger(1, driver=DRIVER, driver_uid=DRIVER_UID, pubs=_PUBS),
+        _converger(2, driver=DRIVER, driver_uid=DRIVER_UID, pubs=_PUBS),
+        _converger(3, driver=DRIVER, driver_uid=DRIVER_UID, pubs=_PUBS),
+        _converger(4, driver="Unrelated", driver_uid=999, pubs=("MIT TR", "Hacker News", "arXiv")),
     ]
     cluster, driver = coherent_cluster(items, min_items=2)
     assert driver == DRIVER
-    assert {it.event_id for it in cluster} == {1, 2}     # the off-driver item is not a member
+    assert {it.event_id for it in cluster} == {1, 2, 3}  # the off-driver item is not a member
 
     data = _sections(items)
     assert data.weak_driver == DRIVER
     selected, converged = weak_cluster(data)
     assert converged is True
-    assert {it.event_id for it in selected} == {1, 2}
+    assert {it.event_id for it in selected} == {1, 2, 3}
 
     bundle = generate_posts(data)
     assert bundle.has_convergence is True
@@ -182,10 +188,8 @@ def test_no_cluster_degrades_honestly():
 def test_archive_tier_cluster_is_disclosed():
     """A cluster built from `archive` items must say so and claim no top-tier provenance."""
     items = [
-        _converger(1, driver=DRIVER, driver_uid=DRIVER_UID,
-                   pubs=("VentureBeat", "The Register"), priority_class="archive"),
-        _converger(2, driver=DRIVER, driver_uid=DRIVER_UID,
-                   pubs=("VentureBeat", "The Register"), priority_class="archive"),
+        _converger(i, driver=DRIVER, driver_uid=DRIVER_UID, pubs=_PUBS, priority_class="archive")
+        for i in (1, 2, 3)
     ]
     data = _sections(items)
     assert data.weak_driver == DRIVER              # archive is in HORIZON_CLASSES; it still clusters
@@ -199,8 +203,7 @@ def test_archive_tier_cluster_is_disclosed():
 
     # The disclosure only appears when it is TRUE — a horizon-signal cluster carries no such line.
     horizon = generate_posts(_sections([
-        _converger(3, driver=DRIVER, driver_uid=DRIVER_UID, pubs=("VentureBeat", "The Register")),
-        _converger(4, driver=DRIVER, driver_uid=DRIVER_UID, pubs=("VentureBeat", "The Register")),
+        _converger(i, driver=DRIVER, driver_uid=DRIVER_UID, pubs=_PUBS) for i in (4, 5, 6)
     ]))
     for surface in _WEAK_SURFACES:
         assert "archive-tier" not in _one(horizon, surface).text

@@ -59,6 +59,10 @@ class GraphSignal:
     # The driving entity's uid — the NORMALISED identity behind `driver`. Two items converge on the
     # same thing when their `driver_uid` matches; the display name is not a grouping key.
     driver_uid: int | None = None
+    # The driving entity's AMBIENT VOLUME over the convergence window: its total mentions across the
+    # corpus (`ConvergenceStat.mentions`, already read here — no extra graph query). Carried so the
+    # weak-signal selection can prefer the *quietest* corroborated driver (task 013 / D-026).
+    driver_mentions: int = 0
     evidence_sources: tuple[str, ...] = field(default_factory=tuple)  # driver's distinct sources
     event_count: int = 0          # developments the driving entity spans (breadth)
     idf: float = 0.0              # rarity weight that made it win (for transparency)
@@ -177,6 +181,7 @@ def compute_signals(
                 why=_why(driver_name, driver_stat, recency_factor),
                 driver=driver_name,
                 driver_uid=driver_stat.entity_uid,
+                driver_mentions=driver_stat.mentions,
                 evidence_sources=driver_stat.source_names,
                 event_count=driver_stat.event_count,
                 idf=driver_idf,

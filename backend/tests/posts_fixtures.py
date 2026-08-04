@@ -54,6 +54,7 @@ def _item(
     contributing_sources: tuple[str, ...] = (),
     driver: str = "",
     driver_uid: int | None = None,
+    driver_mentions: int = 0,
     published_offset_days: int = 0,
 ) -> DigestItem:
     return DigestItem(
@@ -83,6 +84,7 @@ def _item(
         contributing_sources=contributing_sources,
         driver=driver,
         driver_uid=driver_uid,
+        driver_mentions=driver_mentions,
     )
 
 

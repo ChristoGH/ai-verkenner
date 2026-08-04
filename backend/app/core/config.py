@@ -26,6 +26,38 @@ def _resolve(path_value: str) -> Path:
     return p if p.is_absolute() else (REPO_ROOT / p)
 
 
+# Driver names that may never LABEL a Weak Signal of the Week (task 013 / D-026, defect B).
+# Edit this list — or override it wholesale with a comma-separated WEAK_DRIVER_STOPLIST — without
+# touching any logic. Matched case-insensitively against the entity's *normalised* identity
+# (`schemas.enrichment.normalise_entity_name`: lower / trim / collapse whitespace).
+#
+# Why each class of term is here:
+#   * the field itself — every item in this corpus is about AI, so "AI is quietly converging" says
+#     nothing; it is the category, not an entity within it.
+#   * model-class nouns — "LLM" / "model" name the artefact class, and D-024 found the 8-item
+#     incoherent M7.5 cluster passed precisely by sharing a generic "LLM" hub.
+#   * sub-discipline names — "machine learning" / "deep learning" are fields of study; a convergence
+#     on one is a statement about the whole industry, not an early warning.
+#
+# Stoplisting affects SELECTION ONLY. These entities stay in the graph, keep their scores, and can
+# still appear anywhere else in the digest — they simply cannot be the face of a weak signal.
+_DEFAULT_WEAK_DRIVER_STOPLIST: tuple[str, ...] = (
+    # the field itself
+    "ai", "artificial intelligence", "generative ai", "genai",
+    # model-class nouns
+    "llm", "llms", "large language model", "large language models", "model", "models",
+    # sub-discipline names
+    "machine learning", "ml", "deep learning", "neural network",
+)
+
+
+def _csv_list(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    """A comma-separated env override, or the default. Blank entries are dropped."""
+    if value is None:
+        return default
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
 class Settings:
     """Plain settings holder (kept simple; no pydantic dependency in Task 001)."""
 
@@ -135,11 +167,34 @@ class Settings:
         self.digest_section_limit: int = int(os.getenv("DIGEST_SECTION_LIMIT", "8"))
         # How many semantic neighbours the GraphRAG retrieve step pulls for the theme query.
         self.digest_retrieve_limit: int = int(os.getenv("DIGEST_RETRIEVE_LIMIT", "40"))
+        # --- Weak-signal SELECTION floor (task 013 defect C / D-047). ------------------------------
+        # Both settings below gate which driver may be CHOSEN as the Weak Signal of the Week. They
+        # are deliberately separate from `graph_min_sources`, which is the global convergence floor
+        # inside `graph_signals` — raising that would change scoring product-wide (D-026 rules it
+        # out). Nothing here is re-scored; a driver below the floor keeps its convergence, it just
+        # cannot be the face of the piece.
+        #
+        # WHY 3, for both: the selection objective is *quietest corroborated driver* (D-026), and a
+        # minimiser lands on whatever the floor allows. At a floor of 2 the winner is 2 mentions /
+        # 2 sources / 2 items by construction — which is not distinguishable from coincidence, and
+        # on the real corpus produced `Firefox`, whose second item had no AI content at all (D-036).
+        # Two sources mentioning something twice is a coincidence; three is a pattern. A weak signal
+        # needs enough corroboration to be REAL *and* low ambient volume — the floor supplies the
+        # first half, the quietness ordering the second.
+        #
         # Smallest group of items sharing ONE driving entity that may be called a convergence
-        # (task 010 / D-016 B). Below this, the weak-signal piece degrades honestly rather than
-        # claiming a cluster. This is a coherence floor, NOT a scoring threshold — raising or
-        # lowering it to manufacture a signal is the failure D-014 forbids.
-        self.weak_cluster_min_items: int = int(os.getenv("WEAK_CLUSTER_MIN_ITEMS", "2"))
+        # (task 010 / D-016 B, floor raised 2 → 3 by D-047). Below this, the weak-signal piece
+        # degrades honestly rather than claiming a cluster. This is a coherence floor, NOT a scoring
+        # threshold — LOWERING it to manufacture a signal is the failure D-014 forbids.
+        self.weak_cluster_min_items: int = int(os.getenv("WEAK_CLUSTER_MIN_ITEMS", "3"))
+        # Distinct sources a driver must span to be *selectable* as the weak signal. Selection only:
+        # `GRAPH_MIN_SOURCES` (above, default 2) still decides what counts as convergence at all.
+        self.weak_driver_min_sources: int = int(os.getenv("WEAK_DRIVER_MIN_SOURCES", "3"))
+        # Generic concept nodes that may never be the DRIVER of a weak signal (task 013 / D-026).
+        # See `_DEFAULT_WEAK_DRIVER_STOPLIST` above for the list and why each class of term is on it.
+        self.weak_driver_stoplist: tuple[str, ...] = _csv_list(
+            os.getenv("WEAK_DRIVER_STOPLIST"), _DEFAULT_WEAK_DRIVER_STOPLIST
+        )
 
         # Post generator (M7.5). `posts_output_dir` is the git-ignored working area for generated
         # drafts. `vault_dir` (from VAULT_DIR) is the user's Obsidian vault — when set, drafts are

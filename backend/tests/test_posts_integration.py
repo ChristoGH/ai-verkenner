@@ -2,7 +2,7 @@
 
 Proves the non-CLI path the `posts` command drives: build the structured digest data from the DB
 (LLM-free), project it into drafts, and write create-only vault notes — over the same seed the M7
-digest tests use (which contains a genuine two-source convergence and two noise demotions).
+digest tests use (which contains a genuine three-source convergence and two noise demotions).
 """
 
 from __future__ import annotations
@@ -27,7 +27,8 @@ def test_posts_over_seeded_corpus(session, tmp_path):
     bundle = generate_posts(data, digest_id=1)
 
     assert len(bundle.drafts) == 6
-    # The seed's two RAG developments converge across two distinct sources → a real weak signal.
+    # The seed's three RAG developments converge across three distinct sources → a real weak signal
+    # that clears the selection floor (task 013 defect C: 3 items AND 3 distinct sources).
     assert converged is True and bundle.has_convergence is True
 
     # The Noise Report carries the seeded archive + hype-5 demotions, with their links preserved.
@@ -36,10 +37,11 @@ def test_posts_over_seeded_corpus(session, tmp_path):
     assert "https://src3/arc" in noise_medium.text
     assert "https://src3/hype" in noise_medium.text
 
-    # The weak-signal drafts keep the two converging RAG source links.
+    # The weak-signal drafts keep every converging RAG source link.
     weak_medium = next(d for d in bundle.drafts
                        if d.piece == PIECE_WEAK_SIGNAL and d.surface == SURFACE_MEDIUM)
-    assert "/rag0" in weak_medium.text and "/rag1" in weak_medium.text
+    for slug in ("/rag0", "/rag1", "/rag2"):
+        assert slug in weak_medium.text
 
     # Vault notes are created (temp dir), one per draft.
     notes = write_vault_notes(bundle, tmp_path)

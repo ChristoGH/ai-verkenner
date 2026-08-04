@@ -13,7 +13,8 @@ Polarity honoured throughout: the four salient axes lift; `hype` is inverted and
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import logging
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -21,8 +22,11 @@ from sqlmodel import Session, select
 
 from app.api import dashboard_service
 from app.models import EnrichedItem, RawItem
+from app.schemas.enrichment import normalise_entity_name
 from app.scoring.graph_signals import GraphSignal
 from app.scoring.ranking import rank_with_graph, salience
+
+logger = logging.getLogger(__name__)
 
 # The weak-signal quadrant (matches /horizon): the low-relevance items the class-first feed buries.
 HORIZON_CLASSES = ("horizon_signal", "archive")
@@ -86,6 +90,9 @@ class DigestItem:
     # normalised identity and the ONLY grouping key — the display name is never grouped on.
     driver: str = ""
     driver_uid: int | None = None
+    # The driving entity's ambient corpus volume over the convergence window (`GraphSignal.
+    # driver_mentions`). The quietness ordering in `coherent_cluster` keys off it (task 013).
+    driver_mentions: int = 0
 
 
 @dataclass(frozen=True)
@@ -165,6 +172,7 @@ def build_items(
                 ),
                 driver=sig.driver if sig else "",
                 driver_uid=sig.driver_uid if sig else None,
+                driver_mentions=sig.driver_mentions if sig else 0,
             )
         )
     return out
@@ -190,34 +198,116 @@ def _rank_weak(items: list[DigestItem], limit: int) -> tuple:
     return tuple(sorted(items, key=lambda it: (-it.graph_score, -salience(it)))[:limit])
 
 
-def coherent_cluster(
-    items: list[DigestItem], *, min_items: int
-) -> tuple[tuple[DigestItem, ...], str]:
-    """The largest group of items converging on **one shared driving entity**, plus its name.
+def _ambient_mentions(group: list[DigestItem]) -> int:
+    """The driver's total corpus mentions over the convergence window.
 
-    `convergence > 0` is a **per-item** property: *this* item's own driver crossed
-    `>= GRAPH_MIN_SOURCES` distinct sources. Filtering on it alone collects items that each converge
-    on a *different, unrelated* entity and presents them as one cluster — the M7.5 defect. Membership
-    therefore requires a shared `driver_uid`: the normalised entity identity, never the display name.
-
-    The `>= GRAPH_MIN_SOURCES` rule is already carried by `convergence > 0` (the contribution is
-    floored to zero below it in `scoring.graph_signals`), so it is inherited here, not re-derived.
-
-    Returns `((), "")` when no group reaches `min_items` — the honest "no coherent cluster" answer.
-    Ties break on group size, then summed graph score, then lowest uid, so the result is stable.
+    Every member of a group shares one `driver_uid`, so every member carries the same figure from
+    the same `ConvergenceStat`; `max` only keeps the value defined for hand-built items.
     """
+    return max(it.driver_mentions for it in group)
+
+
+def _driver_sources(group: list[DigestItem]) -> int:
+    """Distinct independent sources behind the group's shared driver.
+
+    `DigestItem.convergence` *is* that count (`GraphSignal.convergence` = the driving entity's
+    `distinct_sources`), and every member of a group shares one driver, so they all carry the same
+    figure; `max` only guards hand-built items.
+    """
+    return max(it.convergence for it in group)
+
+
+def _eligible_driver(name: str, blocked: set[str]) -> bool:
+    """A driver may label a weak signal unless it is a stoplisted generic concept (task 013 B).
+
+    Matched on the *normalised* identity — the same lower/trim/collapse rule entity resolution uses
+    — so "LLMs", "llms " and "LLMs" are one term. An unnamed driver is also ineligible: a cluster
+    labelled with an empty string can carry no claim.
+    """
+    normalised = normalise_entity_name(name)
+    return bool(normalised) and normalised not in blocked
+
+
+def coherent_cluster(
+    items: list[DigestItem], *, min_items: int, min_sources: int | None = None,
+    stoplist: Iterable[str] | None = None,
+) -> tuple[tuple[DigestItem, ...], str]:
+    """The **quietest eligible** group of items converging on one shared driving entity, + its name.
+
+    Two rules, in order:
+
+    1. **Membership** (task 010 / D-019). `convergence > 0` is a **per-item** property: *this* item's
+       own driver crossed `>= GRAPH_MIN_SOURCES` distinct sources. Filtering on it alone collects
+       items that each converge on a *different, unrelated* entity and presents them as one cluster
+       — the M7.5 defect. Membership therefore requires a shared `driver_uid`: the normalised entity
+       identity, never the display name. The `>= GRAPH_MIN_SOURCES` rule is already carried by
+       `convergence > 0` (the contribution is floored to zero below it in `scoring.graph_signals`),
+       so it is inherited here, not re-derived.
+
+    2. **Selection** (task 013 / D-026, D-047). Among the groups that clear the corroboration bar,
+       the winner is the driver with the **lowest ambient mention count** — a weak signal is
+       *corroborated but not yet loud*, so "largest group wins" optimised for the inverse of the
+       definition and structurally selected the corpus's loudest entity (D-024: OpenAI, "quietly
+       converging"). Ties break: lower mentions → larger group → higher summed graph score → lower
+       uid, so selection is deterministic.
+
+       The bar is three separate filters: `len(group) >= min_items`, `>= min_sources` distinct
+       sources on the driver, and a driver that is not a stoplisted generic concept. The two numeric
+       floors exist **because** the objective is a minimiser: it lands on whatever the floor allows,
+       so a floor of 2 makes "2 mentions / 2 sources / 2 items" the winner by construction — which
+       is coincidence, not corroboration (D-047, the `Firefox` fixed point). These floors are
+       **selection-only** and deliberately higher than `GRAPH_MIN_SOURCES`, which stays where it is.
+
+    No convergence maths is touched here: this decides *which* group is chosen, not how convergence
+    is computed. Returns `((), "")` when no eligible group survives — the honest "quiet week"
+    answer, which is a correct outcome and never something to widen eligibility to avoid.
+    """
+    from app.core.config import settings
+
+    if stoplist is None:
+        stoplist = settings.weak_driver_stoplist
+    if min_sources is None:
+        min_sources = settings.weak_driver_min_sources
+    blocked = {normalise_entity_name(name) for name in stoplist}
+
     groups: dict[int, list[DigestItem]] = {}
     for it in items:
         if it.convergence > 0 and it.driver_uid is not None:
             groups.setdefault(it.driver_uid, []).append(it)
-    if not groups:
+
+    eligible = {
+        uid: group
+        for uid, group in groups.items()
+        if len(group) >= min_items
+        and _driver_sources(group) >= min_sources
+        and _eligible_driver(group[0].driver, blocked)
+    }
+    if not eligible:
+        logger.info(
+            "weak signal: no eligible driver — %d shared-driver group(s), min_items=%d, "
+            "min_sources=%d, %d stoplisted term(s) applied",
+            len(groups), min_items, min_sources, len(blocked),
+        )
         return (), ""
-    _uid, best = max(
-        groups.items(),
-        key=lambda kv: (len(kv[1]), sum(it.graph_score for it in kv[1]), -kv[0]),
+
+    uid, best = min(
+        eligible.items(),
+        key=lambda kv: (
+            _ambient_mentions(kv[1]),
+            -len(kv[1]),
+            -sum(it.graph_score for it in kv[1]),
+            kv[0],
+        ),
     )
-    if len(best) < min_items:
-        return (), ""
+    # Auditability: the chosen driver's stats, so the "quietest" claim can be checked against the
+    # corpus without re-running the selection.
+    logger.info(
+        "weak signal driver: %r (uid=%s) — mentions=%d, distinct sources=%d, group size=%d; "
+        "quietest of %d eligible group(s) out of %d shared-driver group(s) "
+        "(floor: min_items=%d, min_sources=%d)",
+        best[0].driver, uid, _ambient_mentions(best), _driver_sources(best),
+        len(best), len(eligible), len(groups), min_items, min_sources,
+    )
     return tuple(best), best[0].driver
 
 
@@ -231,12 +321,15 @@ def build_sections(
     period_start: datetime | None,
     period_end: datetime | None,
     weak_cluster_min_items: int | None = None,
+    weak_driver_min_sources: int | None = None,
 ) -> DigestData:
     """Route the period's DigestItems into the ten sections (pure)."""
     from app.core.config import settings
 
     if weak_cluster_min_items is None:
         weak_cluster_min_items = settings.weak_cluster_min_items
+    if weak_driver_min_sources is None:
+        weak_driver_min_sources = settings.weak_driver_min_sources
 
     noise = [it for it in items if is_noise(it, high_hype=high_hype)]
     body = [it for it in items if not is_noise(it, high_hype=high_hype)]
@@ -251,7 +344,9 @@ def build_sections(
     # and collected items converging on unrelated entities. When no coherent cluster survives (or
     # Neo4j is down), fall back to the whole quadrant by hype-aware salience and claim nothing.
     quadrant = [it for it in items if it.priority_class in HORIZON_CLASSES]
-    cluster, weak_driver = coherent_cluster(quadrant, min_items=weak_cluster_min_items)
+    cluster, weak_driver = coherent_cluster(
+        quadrant, min_items=weak_cluster_min_items, min_sources=weak_driver_min_sources
+    )
     weak_signals = _rank_weak(list(cluster) or quadrant, section_limit)
 
     research_radar = _rank(

@@ -245,14 +245,20 @@ the body on the user's themes) → **Neo4j expand** (`graph_signals` convergence
 re-derivation) → **one composition LLM call** (`prompts/digest.md`) or the deterministic fallback
 render (`render.py`). The weak-signals / research-radar sections draw from the hub-dampened
 convergence quadrant; the noise count is the honest archived/high-hype total. **Cluster coherence
-(task 010, current):** the weak-signal section is the largest group of items sharing **one driving
-entity** — `sections.coherent_cluster()` groups on `GraphSignal.driver_uid` (the normalised entity
-identity, never the display name) with a floor of `WEAK_CLUSTER_MIN_ITEMS` (default 2), and records
-the winner as `DigestData.weak_driver`. The previous per-item `convergence > 0` filter was a
-**per-item** property and collected items converging on unrelated entities; a convergence may now be
-claimed only when `weak_driver` is non-empty, and the post generator reads that one value rather
-than re-deriving coherence. Known residual: "largest group" selects the corpus's loudest entity
-(D-024) — driver *eligibility* is unresolved. It degrades to
+(task 010) + driver eligibility (task 013, current):** the weak-signal section is a group of items
+sharing **one driving entity** — `sections.coherent_cluster()` groups on `GraphSignal.driver_uid`
+(the normalised entity identity, never the display name) with a floor of `WEAK_CLUSTER_MIN_ITEMS`
+(default 2), and records the winner as `DigestData.weak_driver`. The previous per-item
+`convergence > 0` filter was a **per-item** property and collected items converging on unrelated
+entities; a convergence may now be claimed only when `weak_driver` is non-empty, and the post
+generator reads that one value rather than re-deriving coherence. **Selection is by quietness, not
+size** (D-026): among groups clearing the floor, the winner is the driver with the lowest ambient
+mention count (`GraphSignal.driver_mentions`, threaded from the same convergence read — no extra
+query), because a weak signal is *corroborated but not yet loud*; "largest group" structurally
+selected the corpus's loudest entity (D-024). Generic concept nodes ("AI", "LLM", "Large language
+models", …) are categorically ineligible to *label* a cluster via `WEAK_DRIVER_STOPLIST` — selection
+only; nothing is removed from the graph or from scoring. Convergence maths, `GRAPH_MIN_SOURCES` and
+`priority.py` are untouched by this. It degrades to
 SQLite-only when Qdrant/Neo4j are down and persists as `Digest` (`GET /digests`, `GET /digests/{id}`,
 a Digests page). Generated via `python -m app.cli digest`.
 
