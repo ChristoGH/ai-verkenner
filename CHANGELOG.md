@@ -209,6 +209,65 @@ Nine existing tests failed on the raised floor because their fixtures were built
 production threshold was lowered to make the suite green. Backend suite: **218 passed, 1 skipped,
 0 failed**.
 
+## Task 010 — Defects 2 + 3: draft surface validity (2026-08-04)
+
+**Every generated draft is now valid on the surface it targets.** Presentation only: no scoring, no
+selection, no enrichment change.
+
+### Defect 2 — X thread items exceeded the character limit
+
+`generator.py` fitted the *hook* and emitted every thread item unchecked; the 2026-07-21 run shipped
+nine items of 400–808 characters against a 280 limit. The related finding [D-025] showed the hook was
+no better off: a 162-character source URL left ~2 characters for the label, so a six-character entity
+name rendered as `Op…`.
+
+- `_fit_hook` became **`_fit_x`** — still the single trimming rule, now governing *every* emitted X
+  post rather than only the hook, and taking the evidence link as an **atomic** argument that is
+  never trimmed (a cut URL is a dead URL). Order of sacrifice: the variable label down to
+  `_MIN_LABEL_CHARS` (24), **then** the surrounding prose, then the label to nothing, then a hard
+  cut that still keeps the link. So a long URL now starves the sentence, never the subject.
+- New `_thread()` numbers and fits every thread item, so none can be emitted unchecked.
+- New `_link_fits_in_hook()` — a *placement* decision, not a trimming one: when the link cannot sit
+  in the hook beside a readable label, it leads the thread instead (idiomatic on X). The URL stays in
+  the draft, so the invariant holds; only the inline placement moves. See [D-028].
+- The trailing `Sources:` block is now labelled *"reference list — not a post"*: it is material for
+  the human assembling the thread, not a post, and is deliberately not length-capped ([D-029]).
+
+### Defect 3 — the Noise Report had no editorial cap
+
+187 demotions produced a 141 KB Medium draft and 16 KB X / LinkedIn variants.
+
+- New **`NOISE_REPORT_LIMIT`** (default **12**) caps the items each surface *names*, loudest-first.
+- `_noise_ranked()` now returns the capped selection **and the true demoted total**; every surface
+  states that total in prose ("187 items were demoted this week; these are the 12 loudest"), so the
+  cap can never misrepresent corpus size. `is_noise` and the hype threshold are untouched.
+
+### Verified on the real corpus (LLM-free, $0)
+
+`data/dev_corpus.db`, `build_digest_data(period_days=7, now=2026-07-21 10:45Z)` — the CLI still has
+no as-of flag (D-023). Window 2026-07-14 15:06 → 2026-07-21 10:45: 221 events, body 34, **noise 187**,
+graph populated (2130 nodes / 3666 rels).
+
+| draft | before (2026-08-03) | after |
+|---|---|---|
+| noise-report-medium | 140,674 B | **9,550 B** |
+| noise-report-x | 15,951 B | 3,248 B |
+| noise-report-linkedin | 16,095 B | 2,457 B |
+| X posts over 280 chars | 9 | **0** |
+
+All source URLs preserved on every weak-signal surface. Drafts in `outputs/posts/2026-08-04-*`
+(git-ignored), beside the `2026-07-21-*` and `2026-08-03-*` sets for comparison.
+
+### Tests
+
+`backend/tests/test_draft_surface_validity.py` — `test_all_x_thread_items_within_limit`
+(parametrised over four fixture shapes × both pieces) · `test_x_truncation_preserves_urls` ·
+`test_x_hook_keeps_a_readable_label_beside_a_long_url` (pins [D-025]) ·
+`test_noise_report_respects_limit` · `test_noise_report_states_true_total`. New fixtures
+`long_form_digest()` / `noisy_digest()` carry **real-corpus proportions** — 162-character URLs and
+400–800-character summaries — because the tidy short fixtures fit inside 280 by accident, which is
+why the defect was never caught ([D-030]).
+
 ## Task 010 — Defect 1: convergence cluster coherence (2026-08-03)
 
 **A convergence may now be claimed only when the items share one driving entity.**

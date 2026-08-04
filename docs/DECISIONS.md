@@ -233,6 +233,33 @@ Entry template:
 **Decision.** (b). Agent (auto) — the addendum exists precisely to hold rules earned from named failures.
 **Consequences.** `docs/AGENT_ADDENDUM.md` gains §7 (no git write operations from a mounted/sandboxed environment — staging and committing belong to the host session) and an extension to §4 (recorded test baselines are **re-verifiable claims, not facts**; re-run before citing). The lock incident also means the Cowork session's contribution ends at *files written* — commits are the host's.
 **Outcome.** Done.
+
+> **Numbering note (2026-08-04).** Two sessions appended here on the same day, into the same working tree: **Task 010 Session 2** (Defects 2 + 3) claimed D-028…D-030, and **Task 013** (driver eligibility) claimed D-031…D-036. Both briefly wrote D-028…D-030; the collision was caught and the Task 013 entries were shifted up. The numbers below are the resolved set — no duplicates remain. Lesson: concurrent sessions in one tree must re-read the last entry immediately before appending, because "last number on disk" is not stable while another session is writing.
+
+## D-028 · 2026-08-04 · When the evidence link cannot share the X hook, it leads the thread instead
+
+**Context.** D-025 found the M7.5 X hook truncated to `Op…`: `_fit_hook` preserved the suffix intact, the suffix carried a 162-character source URL, and a 280-character budget left ~2 characters for a 6-character entity name. Task 010 Defect 2 requires every X post to fit the limit *and* keep its URL; with a URL that long there is no phrasing that satisfies both plus a readable label.
+**Options.** (a) trim the prose only and accept whatever is left for the label; (b) count links at X's t.co length (23 chars) instead of their real length; (c) drop the link from the hook when it cannot coexist with a readable label, and lead the thread with it.
+**Decision.** **(c), plus a label floor in the trimmer.** Agent (auto). (a) is the status quo and produces `Op…` — a post that has lost its subject is not "fitted", it is broken. (b) would be the *true* fix for the surface (X does wrap every URL to 23 characters), but it encodes an unversioned platform assumption into the character budget and makes the acceptance criterion self-referential: drafts would pass a limit measured differently from how a human counts them. That is a decision for Christo, not a silent agent choice — recorded as an open question rather than taken.
+**Consequences.** `_fit_hook` became `_fit_x` and now takes the link as an **atomic** argument that is never trimmed, with a sacrifice order of variable → prose → variable-to-nothing → hard cut. `_MIN_LABEL_CHARS = 24` is the floor below which trimming moves to the prose. `_link_fits_in_hook()` decides *placement* (not trimming): when the link cannot sit in the hook beside a readable label, it becomes thread post 2 — idiomatic on X, and the URL invariant holds because the link is still in the draft. On the real corpus (2026-07-21 window) the weak-signal hook now reads in full at 199 characters with the link inline; on the long-URL fixture the link is displaced and the label survives. **Residual, not fixed:** on 162-character URLs a FACT thread item retains only ~30 characters of summary beside its markdown link. That is the task file's stated preference ("prefer keeping the URL and truncating the prose") followed literally, and it produces near-contentless FACTs. The real remedies are option (b) or shortening the URLs; both need a ruling.
+**Outcome.** Escalated — see the open question in HANDOFF.md.
+
+## D-029 · 2026-08-04 · The X `Sources:` block is a reference list, not a post, and is not length-capped
+
+**Context.** Task 010 Defect 2's acceptance criterion is "no emitted X thread item exceeds `X_CHAR_LIMIT`". Each X draft ends with a `Sources:` line concatenating every URL — 695 characters on the long-URL fixture, 2.8 KB on an uncapped Noise Report. Read as a post, it fails the criterion; read as reference material, it is not a post at all.
+**Options.** (a) trim it to the limit; (b) split it into multiple posts; (c) label it explicitly as reference material and leave it whole.
+**Decision.** (c). Agent (auto). (a) would truncate URLs, which breaks the URL invariant outright — the one thing the whole task exists to protect. (b) invents thread structure the task did not ask for.
+**Consequences.** The block is now headed **"Sources (reference list — not a post):"** on both X pieces, so a human assembling a thread cannot mistake it for one, and `tests/test_draft_surface_validity.py` defines a "post" as the hook plus lines matching `^\d+/ ` — matching the drafts' own labelling rather than a convention held only in the test.
+**Outcome.** —
+
+## D-030 · 2026-08-04 · Test fixtures must carry real-corpus proportions, not tidy ones
+
+**Context.** The M7.5 post generator shipped with a passing suite that never caught 800-character thread items or a 141 KB draft. The reason is in the fixtures: `converging_digest()` and `thin_digest()` use short titles, one-line summaries and 40-character URLs, so every X line fit inside 280 **by accident** and the Noise Report had two items.
+**Options.** (a) add assertions to the existing fixtures; (b) add fixtures sized like the real corpus.
+**Decision.** (b), keeping the existing fixtures unchanged. Agent (auto). Assertions over fixtures that cannot express the defect would have passed before the fix too — the defect was invisible to the data, not to the assertions.
+**Consequences.** `tests/posts_fixtures.py` gains `long_form_digest()` (162-character URLs, 400–800-character summaries — the 2026-07-21 shape) and `noisy_digest(count)` (the 187-demotion shape). Both new limit tests are parametrised across the tidy *and* the real-proportioned fixtures. **Standing lesson, generalising D-022:** a green suite over fixtures smaller than production is evidence about the fixtures, not about the code — when a defect is about *size*, the fixture has to be the size that breaks it.
+**Outcome.** —
+
 ## D-031 · 2026-08-04 · Ambient mention count threaded from the existing convergence read; unknown volume sorts quietest
 
 **Context.** Task 013's quietness objective needs each driver's ambient corpus volume, with a hard stop condition: *if the mention count is not already threaded to the digest layer and reaching it would require a new graph query, STOP and report*. `ConvergenceStat.mentions` (`backend/app/graph/store.py:27`) is already read by `compute_signals` and was being discarded, exactly like `entity_uid` before D-019.

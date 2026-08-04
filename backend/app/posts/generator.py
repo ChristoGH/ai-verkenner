@@ -99,21 +99,69 @@ def _all_urls(items: tuple[DigestItem, ...]) -> tuple[str, ...]:
     return tuple(seen)
 
 
-def _fit_hook(prefix: str, variable: str, suffix: str, *, limit: int = X_CHAR_LIMIT) -> str:
-    """Assemble `prefix + variable + suffix` within `limit`, trimming only the variable middle.
-
-    The suffix (which carries the evidence link) is always preserved intact; only the human-readable
-    `variable` (a title/theme) is shortened, with an ellipsis, so the hook never loses its link.
-    """
-    fixed = len(prefix) + len(suffix)
-    room = limit - fixed
-    var = variable
+def _ellipsis(text: str, room: int) -> str:
+    """`text` cut to `room` characters with a trailing ellipsis (empty when there is no room)."""
     if room <= 0:
-        # Degenerate: prefix+suffix already at the limit — return them, trimmed hard to fit.
-        return (prefix + suffix)[:limit]
-    if len(var) > room:
-        var = var[: max(0, room - 1)].rstrip() + "…"
-    return prefix + var + suffix
+        return ""
+    if len(text) <= room:
+        return text
+    return text[: max(0, room - 1)].rstrip() + "…"
+
+
+# The shortest a label may be trimmed to before the trimmer starts sacrificing the surrounding prose
+# instead. Below this a hook degrades into noise — the M7.5 `Op…` (D-025), where a 162-character
+# source URL left ~2 characters for a 6-character entity name. A post that lost its subject is not
+# "fitted", it is broken.
+_MIN_LABEL_CHARS = 24
+
+
+def _fit_x(prefix: str, variable: str, prose: str = "", atomic: str = "",
+           *, limit: int = X_CHAR_LIMIT) -> str:
+    """Assemble one X post — `prefix + variable + prose + atomic` — within `limit`.
+
+    The single trimming rule for **every** emitted X post (hook and thread item alike): a second rule
+    would drift from this one. `atomic` is the evidence link (a bare URL or a markdown link) and is
+    never trimmed — a truncated URL is a dead URL, and the URL invariant outranks tidy prose.
+
+    Order of sacrifice:
+
+    1. the `variable` middle (a theme, title or summary), down to `_MIN_LABEL_CHARS`;
+    2. then the trimmable `prose` around it, so a long source URL starves the sentence rather than
+       the subject (D-025);
+    3. then the variable down to nothing, and only then a hard cut — which still keeps `atomic`.
+    """
+    budget = limit - len(prefix) - len(atomic)      # room shared by `variable` + `prose`
+    if budget <= 0:
+        # The link alone fills the post. Keep it whole: a link with no sentence is still usable, a
+        # truncated link is not. Only reachable for a pathologically long URL.
+        return atomic or (prefix + variable + prose)[:limit]
+    var_room = min(len(variable), max(0, budget - len(prose)))
+    if var_room < _MIN_LABEL_CHARS:
+        var_room = min(len(variable), budget, _MIN_LABEL_CHARS)
+    var = _ellipsis(variable, var_room)
+    return (prefix + var + _ellipsis(prose, budget - len(var)) + atomic).rstrip()
+
+
+def _thread(items: list[tuple[str, str, str, str]], *, start: int) -> list[str]:
+    """Number `(label, variable, prose, atomic)` thread items and fit each one to `X_CHAR_LIMIT`.
+
+    Every numbered post on the X surface goes through here, so none can be emitted unchecked — the
+    M7.5 defect was thread items of 400–800 characters beside a carefully-fitted hook.
+    """
+    out: list[str] = []
+    for n, (label, variable, prose, atomic) in enumerate(items, start=start):
+        prefix = f"{n}/ {label}: " if label else f"{n}/ "
+        out.append(_fit_x(prefix, variable, prose, atomic))
+    return out
+
+
+def _link_fits_in_hook(prefix: str, prose: str, url: str) -> bool:
+    """Can the evidence link sit in the hook and still leave a readable label? (D-025.)
+
+    A placement question, not a trimming one: when the answer is no the link leads the thread instead
+    — idiomatic on X, and the URL stays in the draft, so nothing is lost but the inline placement.
+    """
+    return len(prefix) + len(prose) + len(url) + _MIN_LABEL_CHARS <= X_CHAR_LIMIT
 
 
 def _banner_block(piece_label: str, surface_label: str) -> list[str]:
@@ -191,15 +239,17 @@ def _weak_x(cluster: tuple[DigestItem, ...], driver: str, image_ref: str) -> Dra
 
     if driver:
         prefix = "🛰️ Weak signal of the week: "
-        suffix = (
+        prose = (
             f" — {len(cluster)} items converging across {len(pubs)} independent sources, "
-            f"before it's a headline. Evidence 👇 {lead_url}"
+            f"before it's a headline. Evidence 👇 "
         )
-        hook = _fit_hook(prefix, _theme(cluster, driver), suffix)
+        variable = _theme(cluster, driver)
     else:
         prefix = "🛰️ Quiet week on the radar — no strong cross-source convergence yet. Watching: "
-        suffix = f". {lead_url}" if lead_url else "."
-        hook = _fit_hook(prefix, _theme(cluster), suffix)
+        prose = ". " if lead_url else "."
+        variable = _theme(cluster)
+    inline_link = bool(lead_url) and _link_fits_in_hook(prefix, prose, lead_url)
+    hook = _fit_x(prefix, variable, prose, lead_url if inline_link else "")
 
     lines = _banner_block("Weak Signal of the Week", "X / Twitter")
     lines.append(f"**Hook post (≤{X_CHAR_LIMIT} chars — {len(hook)}):**")
@@ -208,18 +258,20 @@ def _weak_x(cluster: tuple[DigestItem, ...], driver: str, image_ref: str) -> Dra
     lines.append(f"📊 {image_ref}")
     lines.append("")
     lines.append("**Thread (optional):**")
-    n = 1
+    items: list[tuple[str, str, str, str]] = []
+    if lead_url and not inline_link:
+        # Displaced from the hook because it could not sit there beside a readable label (D-025).
+        items.append(("Evidence", "", "", lead_url))
     for it in cluster:
-        n += 1
-        lines.append(f"{n}/ {FACT_LABEL}: {_clean(it.summary)} ({_md_link(it)})")
+        items.append((FACT_LABEL, _clean(it.summary), " ", f"({_md_link(it)})"))
     if interp:
-        n += 1
-        lines.append(f"{n}/ {INTERP_LABEL}: {interp}")
+        items.append((INTERP_LABEL, interp, "", ""))
     if tier:
-        n += 1
-        lines.append(f"{n}/ {tier}")
+        items.append(("", tier, "", ""))
+    lines += _thread(items, start=2)
     if urls:
         lines.append("")
+        lines.append("**Sources (reference list — not a post):**")
         lines.append("Sources: " + " ".join(urls))
     text = "\n".join(lines).rstrip() + "\n"
     return Draft(SURFACE_X, PIECE_WEAK_SIGNAL, "Weak Signal of the Week — X",
@@ -344,12 +396,25 @@ def _weak_medium(cluster: tuple[DigestItem, ...], driver: str, image_ref: str,
 # ----------------------------------------------------------------------------------------------- #
 
 
-def _noise_ranked(data: DigestData, high_hype: int) -> tuple[tuple[DigestItem, ...], int]:
-    """The demoted items, loudest-but-emptiest first (high hype, then low salience)."""
+def _noise_ranked(data: DigestData, *, limit: int) -> tuple[tuple[DigestItem, ...], int]:
+    """The demoted items loudest-but-emptiest first, capped, plus the **true** demoted total.
+
+    The cap (task 010 Defect 3) is editorial only: 187 demotions produced a 141 KB Medium draft
+    nobody would read. Nothing is re-scored and nothing is hidden — the total comes back alongside
+    the capped list and every surface states it, so the cap never misrepresents the corpus.
+    """
     from app.scoring.ranking import salience
 
     ranked = tuple(sorted(data.noise, key=lambda it: (-it.hype, salience(it))))
-    return ranked, high_hype
+    shown = ranked[:limit] if limit > 0 else ranked
+    return shown, len(ranked)
+
+
+def _demoted_total_line(shown: int, total: int) -> str:
+    """The honest count sentence: the full demoted total first, the capped selection second."""
+    if shown >= total:
+        return f"{total} item(s) were demoted this week."
+    return f"{total} items were demoted this week; these are the {shown} loudest."
 
 
 def _noise_reason(it: DigestItem, high_hype: int) -> str:
@@ -358,13 +423,16 @@ def _noise_reason(it: DigestItem, high_hype: int) -> str:
     return "archived — low relevance to the stack"
 
 
-def _noise_x(noise: tuple[DigestItem, ...], high_hype: int) -> Draft:
+def _noise_x(noise: tuple[DigestItem, ...], high_hype: int, total: int) -> Draft:
     urls = _all_urls(noise)
+    inline_link = False
     if noise:
         lead = noise[0]
         prefix = "📢 Noise report — the loudest-but-emptiest AI story this week: "
-        suffix = f" ({_noise_reason(lead, high_hype)}). More heat than signal. {lead.source_url}"
-        hook = _fit_hook(prefix, _clean(lead.title), suffix)
+        prose = f" ({_noise_reason(lead, high_hype)}). More heat than signal. "
+        inline_link = _link_fits_in_hook(prefix, prose, lead.source_url)
+        hook = _fit_x(prefix, _clean(lead.title), prose,
+                      lead.source_url if inline_link else "")
     else:
         hook = "📢 Noise report: a genuinely quiet week — nothing crossed the noise threshold. 🎉"
 
@@ -375,24 +443,34 @@ def _noise_x(noise: tuple[DigestItem, ...], high_hype: int) -> Draft:
     lines.append("")
     if noise:
         lines.append("**Thread (optional):**")
-        for i, it in enumerate(noise[:5], start=2):
-            lines.append(f"{i}/ {FACT_LABEL}: {_clean(it.title)} — {_noise_reason(it, high_hype)} "
-                         f"({_md_link(it)})")
-        lines.append(f"{min(len(noise), 5) + 2}/ {INTERP_LABEL}: hype is inverted here — "
-                     f"0=signal, 5=noise. Loud ≠ important.")
+        items: list[tuple[str, str, str, str]] = []
+        if not inline_link:
+            items.append(("Evidence", "", "", noise[0].source_url))
+        # The true demoted total leads the thread, so the capped selection below can never read as
+        # the whole corpus.
+        items.append(("", _demoted_total_line(min(len(noise), 5), total), "", ""))
+        for it in noise[:5]:
+            items.append((FACT_LABEL, _clean(it.title),
+                          f" — {_noise_reason(it, high_hype)} ", f"({_md_link(it)})"))
+        items.append((INTERP_LABEL, "hype is inverted here — 0=signal, 5=noise. "
+                                    "Loud ≠ important.", "", ""))
+        lines += _thread(items, start=2)
         if urls:
             lines.append("")
+            lines.append("**Sources (reference list — not a post):**")
             lines.append("Sources: " + " ".join(urls))
     text = "\n".join(lines).rstrip() + "\n"
     return Draft(SURFACE_X, PIECE_NOISE_REPORT, "Noise Report — X", "noise-report-x",
                  hook, text, urls)
 
 
-def _noise_linkedin(noise: tuple[DigestItem, ...], high_hype: int) -> Draft:
+def _noise_linkedin(noise: tuple[DigestItem, ...], high_hype: int, total: int) -> Draft:
     urls = _all_urls(noise)
     if noise:
-        hook = (f"This week's loudest-but-emptiest in AI — {len(noise)} stories that were all "
-                f"volume, little signal:")
+        # `total` is the true demoted count, not the three bullets below it — the cap is editorial
+        # and must never shrink the number the reader is given.
+        hook = (f"This week's loudest-but-emptiest in AI — {total} stories that were all "
+                f"volume, little signal. The {min(len(noise), 3)} loudest:")
         pad = "(only a couple crossed the noise line this week)"
     else:
         hook = "A rare quiet week in AI: nothing crossed the noise threshold. Enjoy the silence."
@@ -419,7 +497,8 @@ def _noise_linkedin(noise: tuple[DigestItem, ...], high_hype: int) -> Draft:
                  "noise-report-linkedin", hook, text, urls)
 
 
-def _noise_medium(noise: tuple[DigestItem, ...], high_hype: int, period: str) -> Draft:
+def _noise_medium(noise: tuple[DigestItem, ...], high_hype: int, period: str,
+                  total: int) -> Draft:
     urls = _all_urls(noise)
     title = "The Noise Report"
 
@@ -430,9 +509,9 @@ def _noise_medium(noise: tuple[DigestItem, ...], high_hype: int, period: str) ->
     lines.append("")
     if noise:
         lines.append(
-            f"{len(noise)} item(s) were loud enough to demote this week — high hype or low enough "
-            "relevance to archive. Named honestly, loudest first, because a hype-driven feed "
-            "structurally cannot."
+            f"{_demoted_total_line(len(noise), total)} They were loud enough to demote — high hype "
+            "or low enough relevance to archive. Named honestly, loudest first, because a "
+            "hype-driven feed structurally cannot."
         )
         lines.append("")
         lines.append("## The loudest-but-emptiest (source facts)")
@@ -478,6 +557,7 @@ def generate_posts(
     generated_at: datetime | None = None,
     high_hype: int | None = None,
     image_ref: str | None = None,
+    noise_limit: int | None = None,
 ) -> PostBundle:
     """Project one `DigestData` into the six drafts (2 pieces × 3 surfaces).
 
@@ -489,6 +569,7 @@ def generate_posts(
 
     generated_at = generated_at or datetime.now(timezone.utc)
     high_hype = settings.digest_high_hype if high_hype is None else high_hype
+    noise_limit = settings.noise_report_limit if noise_limit is None else noise_limit
     image_ref = image_ref or PLACEHOLDER_IMAGE_REF
     period = _period_label(data.period_start, data.period_end)
 
@@ -496,15 +577,17 @@ def generate_posts(
     # The shared driving entity, or "" when no coherent cluster survived grouping. Everything the
     # weak-signal drafts claim (label, source count, "converging") keys off this one value.
     driver = data.weak_driver if converged else ""
-    noise, _hh = _noise_ranked(data, high_hype)
+    # `noise` is the capped, loudest-first selection; `noise_total` is the true demoted count that
+    # every Noise Report surface must state (the cap is editorial, not a claim about corpus size).
+    noise, noise_total = _noise_ranked(data, limit=noise_limit)
 
     drafts = (
         _weak_x(cluster, driver, image_ref),
         _weak_linkedin(cluster, driver, image_ref),
         _weak_medium(cluster, driver, image_ref, period),
-        _noise_x(noise, high_hype),
-        _noise_linkedin(noise, high_hype),
-        _noise_medium(noise, high_hype, period),
+        _noise_x(noise, high_hype, noise_total),
+        _noise_linkedin(noise, high_hype, noise_total),
+        _noise_medium(noise, high_hype, period, noise_total),
     )
     return PostBundle(
         digest_id=digest_id,

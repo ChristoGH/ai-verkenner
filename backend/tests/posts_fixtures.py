@@ -196,3 +196,95 @@ def converging_digest() -> DigestData:
         weak_driver=DRIVER,
         **_empty_sections(),
     )
+
+
+# ---- real-corpus proportions (task 010, defects 2 + 3) ------------------------------------------ #
+
+# A source URL the length the real M7.5 corpus actually carries — 160+ characters of slug and
+# tracking parameters. The tidy short URLs above fit inside X's 280 by accident, which is why the
+# thread items were never length-checked and why the hook starved to `Op…` (D-025). Fixtures have to
+# be as ugly as the corpus or they cannot pin the defect.
+def _long_url(n: int) -> str:
+    return (
+        f"https://venturebeat.example/2026/07/{10 + n}/enterprise-agent-orchestration-is-"
+        f"consolidating-onto-model-provider-platforms-survey-of-101-enterprises-finds"
+        f"?utm_source=ai-verkenner&utm_medium=rss&utm_campaign=weekly-radar-2026-07&item={n}"
+    )
+
+
+def _long_summary(n: int) -> str:
+    """A summary the length enrichment really produces (400–800 chars), not a fixture one-liner."""
+    return (
+        f"A survey of 101 enterprises published this week ({n} of the cluster) finds agent "
+        "orchestration consolidating onto model-provider platforms rather than the independent "
+        "frameworks that dominated the previous eighteen months, with respondents citing "
+        "procurement simplicity, single-vendor support and observability tooling as the deciding "
+        "factors; the report separates stated intent from deployed workloads and notes that the "
+        "deployed share remains a minority of production traffic, so the consolidation is a "
+        "direction of travel rather than an accomplished fact."
+    )
+
+
+def long_form_digest() -> DigestData:
+    """A genuine convergence at real-corpus proportions: long summaries **and** long source URLs.
+
+    Same shape as `converging_digest()`, sized like the 2026-07-21 run. Drives the X surface into the
+    case that produced 400–800-character thread items beside a carefully-fitted hook.
+    """
+    weak = tuple(
+        _item(
+            20 + n,
+            title=f"Enterprise agent orchestration consolidates onto model-provider platforms ({n})",
+            source_name=("VentureBeat", "The Register", "arXiv")[n],
+            source_url=_long_url(n),
+            source_type="rss", category="tool", tags=("agents",),
+            relevance=3, strategic_potential=4, hype=1,
+            summary=_long_summary(n),
+            why_it_matters=(
+                "If orchestration consolidates onto the model providers, the integration surface a "
+                "RAG/graph stack has to track shrinks to a handful of vendor APIs — which changes "
+                "what is worth building in-house and what is worth waiting for."
+            ),
+            graph_why="same entity across distinct publishers", graph_score=0.9 - n / 10,
+            convergence=3, contributing_sources=("VentureBeat", "The Register", "arXiv"),
+            driver=DRIVER, driver_uid=DRIVER_UID, driver_mentions=4,
+            published_offset_days=n + 1,
+        )
+        for n in range(3)
+    )
+    return DigestData(
+        period_start=_BASE, period_end=_BASE + timedelta(days=6),
+        total_events=5, item_count=3, noise_count=2, graphrag=True,
+        weak_signals=weak, referenced_event_ids=(20, 21, 22), noise=_noise_items(),
+        weak_driver=DRIVER,
+        **_empty_sections(),
+    )
+
+
+def noisy_digest(count: int = 40) -> DigestData:
+    """`count` demoted items — the 187-demotion shape that produced a 141 KB Medium Noise Report.
+
+    Hype descends across the list so "loudest first" is checkable, and every item carries a long
+    title and URL so an uncapped render is genuinely large.
+    """
+    noise = tuple(
+        _item(
+            300 + n,
+            title=f"Breaking: the {n}th vendor announces the same AI copilot, this time for slides",
+            source_name=f"HypeDaily{n}", source_url=_long_url(100 + n),
+            priority_class="archive" if n % 3 == 0 else "operational_update",
+            category="marketing", tags=("marketing",),
+            relevance=1, novelty=1, actionability=1, strategic_potential=1,
+            hype=5 if n < count // 2 else 4,
+            summary=_long_summary(n),
+            is_weak_signal=False, horizon=None,
+        )
+        for n in range(count)
+    )
+    return DigestData(
+        period_start=_BASE, period_end=_BASE + timedelta(days=6),
+        total_events=count + 3, item_count=3, noise_count=count, graphrag=True,
+        weak_signals=converging_digest().weak_signals, referenced_event_ids=(10, 11, 12),
+        noise=noise, weak_driver=DRIVER,
+        **_empty_sections(),
+    )

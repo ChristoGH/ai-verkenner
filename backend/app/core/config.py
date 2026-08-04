@@ -196,6 +196,12 @@ class Settings:
             os.getenv("WEAK_DRIVER_STOPLIST"), _DEFAULT_WEAK_DRIVER_STOPLIST
         )
 
+        # Editorial cap on the Noise Report (task 010 Defect 3): each surface NAMES at most this many
+        # demoted items, loudest-first. The true total is always stated in the prose ("187 items were
+        # demoted this week; here are the 12 loudest") — the cap is legibility, never a claim about
+        # corpus size. It does not touch `is_noise` or the hype threshold; nothing is re-scored.
+        self.noise_report_limit: int = int(os.getenv("NOISE_REPORT_LIMIT", "12"))
+
         # Post generator (M7.5). `posts_output_dir` is the git-ignored working area for generated
         # drafts. `vault_dir` (from VAULT_DIR) is the user's Obsidian vault — when set, drafts are
         # ALSO written as new notes under <vault>/00-Inbox/ (create-only; never modify/delete). It is
