@@ -3,6 +3,75 @@
 Notable changes per task/milestone. Newest first. History lives in git; this file records *what
 changed and why it mattered*, at the granularity of a task file.
 
+## Task 016 — Mention weight: a passing reference is not participation (2026-08-04)
+
+**An item counts toward a driver's cluster only if the driver is substantively present in it.**
+Authorised by [D-057] after the same pattern appeared three times — the original 8-item "LLM"
+cluster, [D-036]'s Firefox pair and [D-052]'s NextBSD reference — meeting `CLAUDE.md`'s
+"no abstraction before three real use cases" threshold.
+
+The convergence read counts **mentions**, all weighted equally. On the 2026-07-14 → 07-21 window the
+published draft read *"Claude Code — 3 items converging across 4 independent sources"*, while the
+three items came from **2** publishers and only **1** of them was about Claude Code at all.
+
+### Changed
+
+- **`backend/app/scoring/mention_weight.py`** (new) — scores one **entity–item link** from the
+  item's own title and published body: `1.0` named in the title · `0.8` named repeatedly · `0.6`
+  named in the lead · `0.2` named once, body-only · `0.0` never named. Whole-word,
+  case-insensitive, separator-tolerant (`claude-code` ≡ `Claude Code`), markup stripped. No LLM
+  call, no embeddings, no re-enrichment — string matching over text the corpus already holds.
+  The enrichment `tags` signal was evaluated and **rejected**: the NextBSD item is tagged
+  `claude-code` identically to the item whose headline is `Claude Code uses Bun…` ([D-065]).
+- **`backend/app/digests/sections.py`** — `DigestItem` carries `driver_weight`,
+  `driver_weight_why` and `coverage_sources`; `coherent_cluster()` admits a member only at
+  `>= CLUSTER_MEMBER_MIN_WEIGHT` and logs every member's weight, every weight-excluded item and the
+  post-weighting source count at INFO ([D-067]). New `cluster_sources()` is the single source of
+  truth for the published "N independent sources" ([D-066]). **Membership only** — nothing is
+  re-scored, nothing leaves the corpus, the graph or any other section.
+- **`backend/app/posts/generator.py`** — `_publishers()` delegates to `cluster_sources()`, so the
+  printed count is the weighted members' own publishers rather than the driving entity's graph-wide
+  evidence (a number weighting cannot affect).
+- **`backend/app/core/config.py` · `.env.example`** — `CLUSTER_MEMBER_MIN_WEIGHT` (default `0.5`,
+  the gap between a lead mention and a passing one), commented with why it is not a topicality gate.
+
+### Measured on the real corpus (LLM-free, $0)
+
+`data/dev_corpus.db`, `build_digest_data(period_days=7, now=2026-07-21 10:45Z)` (no `--now` flag
+exists, [D-023]); graph already populated, no fetch, no enrichment, no spend.
+
+| | before (HEAD) | after |
+|---|---|---|
+| weak-signal driver | `Claude Code` | **`fine-tuning`** |
+| items in the cluster | 3 | **3** |
+| published "independent sources" | **4** | **3** |
+| actual publishers behind those items | 2 | **3** |
+| cluster items substantively about the driver | 1 of 3 | **3 of 3** |
+
+**Both pinned regressions verified.** The NextBSD item (event 96) scores `0.20` — *named once,
+body-only, at character 73 of 84* — and leaves the `Claude Code` cluster, which then holds **1**
+item, falls below `WEAK_CLUSTER_MIN_ITEMS` and correctly stops being selectable. Its corpus row,
+enrichment row, 5 graph relationships and Noise Report entry are all still there. 30 of ~85
+entity–item links in the quadrant fell below the floor; the graph convergence read is unchanged at
+788 entities. 45 source URLs across 6 drafts, **0 missing**.
+
+**The Mozilla case (D-036) is NOT a mention-weight defect ([D-068]).** Measured, that item names
+`Firefox` **in its headline** and scores `1.0`. What it lacks is AI content — a *topicality*
+question, which task 016's non-goals exclude and which D-036 itself diagnosed as corpus scope. The
+acceptance criterion asking mention weight to exclude it cannot be met without smuggling in a
+topicality gate, so it was **not met and not engineered around**. That pair is already excluded by
+task 013's floor (2 items / 2 sources), so no published claim depends on it.
+
+### Tests
+
+`backend/tests/test_mention_weight.py` — the five named in the task file
+(`test_passing_mention_excluded_from_cluster` · `test_substantive_mention_included` ·
+`test_excluded_item_remains_in_corpus_and_graph` · `test_source_count_computed_after_weighting` ·
+`test_weighting_can_drop_cluster_below_floor`) plus seven more, 12 total. Both real cases are pinned
+**by name and with their real corpus text**, and every weight is computed by the shipped function
+rather than hand-set. Suite: **230 passed / 1 skipped** on this task alone against a re-verified
+**218 / 1 skipped** baseline at `bac590c` ([D-022]).
+
 ## Task 014 — Entity normalisation: one concept, one uid (2026-08-04)
 
 **Alias surface forms now resolve to one canonical entity at graph projection time.** Sequenced

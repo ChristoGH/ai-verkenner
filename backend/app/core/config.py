@@ -202,6 +202,20 @@ class Settings:
         self.weak_driver_stoplist: tuple[str, ...] = _csv_list(
             os.getenv("WEAK_DRIVER_STOPLIST"), _DEFAULT_WEAK_DRIVER_STOPLIST
         )
+        # --- Mention weight: cluster MEMBERSHIP floor (task 016 / D-057). --------------------------
+        # An item joins a driver's cluster only if the driver is substantively present in the item's
+        # own text, scored by `app/scoring/mention_weight.py`. Below this floor the item is excluded
+        # from CLUSTER MEMBERSHIP ONLY — it stays in the corpus, in the graph, in the noise report
+        # and in every other digest section. Nothing is re-scored and nothing is deleted.
+        #
+        # WHY 0.5: the bands are 1.0 title / 0.8 repeated / 0.6 lead / 0.2 named-once-in-passing /
+        # 0.0 never named. 0.5 is the gap between "named in the lead" and "named once, body-only",
+        # so it separates *presence* from *reference* without landing on any band. It is not a
+        # quality bar and not a topicality gate — an off-topic item whose subject IS the driver
+        # scores 1.0 and stays (that is D-036, a corpus-scope question, task 011's).
+        self.cluster_member_min_weight: float = float(
+            os.getenv("CLUSTER_MEMBER_MIN_WEIGHT", "0.5")
+        )
 
         # Editorial cap on the Noise Report (task 010 Defect 3): each surface NAMES at most this many
         # demoted items, loudest-first. The true total is always stated in the prose ("187 items were

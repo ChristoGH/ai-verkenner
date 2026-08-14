@@ -24,6 +24,7 @@ from app.api import dashboard_service
 from app.models import EnrichedItem, RawItem
 from app.schemas.enrichment import normalise_entity_name
 from app.scoring.graph_signals import GraphSignal
+from app.scoring.mention_weight import mention_weight
 from app.scoring.ranking import rank_with_graph, salience
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,19 @@ class DigestItem:
     # The driving entity's ambient corpus volume over the convergence window (`GraphSignal.
     # driver_mentions`). The quietness ordering in `coherent_cluster` keys off it (task 013).
     driver_mentions: int = 0
+    # How substantively the driver is present in THIS item's own text (task 016) — see
+    # `scoring/mention_weight.py` for the bands, and `driver_weight_why` for the reason it got one.
+    # **Defaults to substantive on purpose.** A membership filter must never silently drop an item
+    # because a field was left unpopulated; hand-built `DigestItem`s (fixtures, callers outside
+    # `build_items`) are therefore treated as present, exactly as `driver_mentions=0` treats unknown
+    # ambient volume as quietest. Every item built from the corpus carries a measured value.
+    driver_weight: float = 1.0
+    driver_weight_why: str = ""
+    # This item's OWN independent publishers — the distinct sources of the RawItems grouped into its
+    # Event. Distinct from `contributing_sources`, which is the driving entity's evidence across the
+    # whole graph window and therefore includes publishers that never covered *this* development.
+    # The published "N independent sources" is computed from these, after weighting (task 016).
+    coverage_sources: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -134,6 +148,19 @@ def _representative(session: Session, enriched: EnrichedItem) -> RawItem | None:
     ).first()
 
 
+def _item_body(item: RawItem | None, enriched: EnrichedItem) -> str:
+    """The item's own published body, for measuring how present its driver is (task 016).
+
+    The feed body is the item as *published*, so it is what "named once, in passing" is a fact
+    about. When a feed carries no body at all (some release feeds do not), fall back to the
+    enrichment's source-fact summary rather than judging the item on its headline alone — an
+    unmeasurable item would otherwise be dropped from every cluster for a reason that is about the
+    feed, not the item. No enrichment is re-run: this reads a value the corpus already holds.
+    """
+    body = (item.summary if item is not None else "") or ""
+    return body if body.strip() else (enriched.summary or "")
+
+
 def build_items(
     session: Session, rows: list[EnrichedItem], signals: Mapping[int, GraphSignal]
 ) -> list[DigestItem]:
@@ -142,6 +169,11 @@ def build_items(
     for e in rows:
         item = _representative(session, e)
         sig = signals.get(e.event_id)
+        weight = mention_weight(
+            sig.driver if sig else "",
+            title=item.title if item is not None else "",
+            body=_item_body(item, e),
+        )
         out.append(
             DigestItem(
                 event_id=e.event_id,
@@ -173,6 +205,11 @@ def build_items(
                 driver=sig.driver if sig else "",
                 driver_uid=sig.driver_uid if sig else None,
                 driver_mentions=sig.driver_mentions if sig else 0,
+                driver_weight=weight.weight,
+                driver_weight_why=weight.why,
+                coverage_sources=tuple(
+                    dashboard_service._event_coverage_sources(session, e.event_id)
+                ),
             )
         )
     return out
@@ -217,6 +254,28 @@ def _driver_sources(group: list[DigestItem]) -> int:
     return max(it.convergence for it in group)
 
 
+def cluster_sources(items: Iterable[DigestItem]) -> tuple[str, ...]:
+    """The distinct independent publishers **behind the claim** — the one source of truth for it.
+
+    This is what the drafts' "N independent sources" counts, and it is deliberately computed from
+    the items themselves rather than from `contributing_sources` (the driving entity's evidence
+    across the whole graph window). Those two numbers differ, and the difference is a claim: on the
+    2026-07-14 → 07-21 corpus the `Claude Code` entity was touched by 4 publishers graph-wide while
+    the cluster standing behind the piece was 3 items from 2 publishers.
+
+    Because cluster membership is now weighted (task 016), counting here counts only the items that
+    substantively covered the driver — the count is a consequence of membership, not a parallel
+    derivation of it.
+    """
+    seen: list[str] = []
+    for it in items:
+        names = it.coverage_sources or ((it.source_name,) if it.source_name else ())
+        for name in names:
+            if name and name not in seen:
+                seen.append(name)
+    return tuple(seen)
+
+
 def _eligible_driver(name: str, blocked: set[str]) -> bool:
     """A driver may label a weak signal unless it is a stoplisted generic concept (task 013 B).
 
@@ -230,19 +289,27 @@ def _eligible_driver(name: str, blocked: set[str]) -> bool:
 
 def coherent_cluster(
     items: list[DigestItem], *, min_items: int, min_sources: int | None = None,
-    stoplist: Iterable[str] | None = None,
+    stoplist: Iterable[str] | None = None, min_weight: float | None = None,
 ) -> tuple[tuple[DigestItem, ...], str]:
     """The **quietest eligible** group of items converging on one shared driving entity, + its name.
 
     Two rules, in order:
 
-    1. **Membership** (task 010 / D-019). `convergence > 0` is a **per-item** property: *this* item's
-       own driver crossed `>= GRAPH_MIN_SOURCES` distinct sources. Filtering on it alone collects
-       items that each converge on a *different, unrelated* entity and presents them as one cluster
-       — the M7.5 defect. Membership therefore requires a shared `driver_uid`: the normalised entity
-       identity, never the display name. The `>= GRAPH_MIN_SOURCES` rule is already carried by
-       `convergence > 0` (the contribution is floored to zero below it in `scoring.graph_signals`),
-       so it is inherited here, not re-derived.
+    1. **Membership** (task 010 / D-019, task 016 / D-057). `convergence > 0` is a **per-item**
+       property: *this* item's own driver crossed `>= GRAPH_MIN_SOURCES` distinct sources. Filtering
+       on it alone collects items that each converge on a *different, unrelated* entity and presents
+       them as one cluster — the M7.5 defect. Membership therefore requires a shared `driver_uid`:
+       the normalised entity identity, never the display name. The `>= GRAPH_MIN_SOURCES` rule is
+       already carried by `convergence > 0` (the contribution is floored to zero below it in
+       `scoring.graph_signals`), so it is inherited here, not re-derived.
+
+       Membership also requires the driver to be **substantively present in the item**
+       (`driver_weight >= CLUSTER_MEMBER_MIN_WEIGHT`, task 016). A shared `driver_uid` proves the
+       items name the same entity; it cannot tell whether they are *about* it, and the convergence
+       read weights every mention equally — so a 2,000-word analysis and a one-line name-check
+       corroborated the claim equally. This filter is membership-only, exactly as the stoplist is
+       selection-only: an excluded item keeps its scores, its graph edges, its corpus row and its
+       place in every other section.
 
     2. **Selection** (task 013 / D-026, D-047). Among the groups that clear the corroboration bar,
        the winner is the driver with the **lowest ambient mention count** — a weak signal is
@@ -268,12 +335,16 @@ def coherent_cluster(
         stoplist = settings.weak_driver_stoplist
     if min_sources is None:
         min_sources = settings.weak_driver_min_sources
+    if min_weight is None:
+        min_weight = settings.cluster_member_min_weight
     blocked = {normalise_entity_name(name) for name in stoplist}
 
     groups: dict[int, list[DigestItem]] = {}
+    passed_over: dict[int, list[DigestItem]] = {}
     for it in items:
         if it.convergence > 0 and it.driver_uid is not None:
-            groups.setdefault(it.driver_uid, []).append(it)
+            target = groups if it.driver_weight >= min_weight else passed_over
+            target.setdefault(it.driver_uid, []).append(it)
 
     eligible = {
         uid: group
@@ -282,11 +353,13 @@ def coherent_cluster(
         and _driver_sources(group) >= min_sources
         and _eligible_driver(group[0].driver, blocked)
     }
+    dropped = sum(len(v) for v in passed_over.values())
     if not eligible:
         logger.info(
-            "weak signal: no eligible driver — %d shared-driver group(s), min_items=%d, "
-            "min_sources=%d, %d stoplisted term(s) applied",
-            len(groups), min_items, min_sources, len(blocked),
+            "weak signal: no eligible driver — %d shared-driver group(s) after weighting, "
+            "min_items=%d, min_sources=%d, min_weight=%.2f (%d item-link(s) below it), "
+            "%d stoplisted term(s) applied",
+            len(groups), min_items, min_sources, min_weight, dropped, len(blocked),
         )
         return (), ""
 
@@ -301,12 +374,33 @@ def coherent_cluster(
     )
     # Auditability: the chosen driver's stats, so the "quietest" claim can be checked against the
     # corpus without re-running the selection.
+    published = cluster_sources(best)
     logger.info(
         "weak signal driver: %r (uid=%s) — mentions=%d, distinct sources=%d, group size=%d; "
-        "quietest of %d eligible group(s) out of %d shared-driver group(s) "
-        "(floor: min_items=%d, min_sources=%d)",
+        "quietest of %d eligible group(s) out of %d shared-driver group(s) AFTER weighting "
+        "(floor: min_items=%d, min_sources=%d, min_weight=%.2f; %d item-link(s) below it)",
         best[0].driver, uid, _ambient_mentions(best), _driver_sources(best),
-        len(best), len(eligible), len(groups), min_items, min_sources,
+        len(best), len(eligible), len(groups), min_items, min_sources, min_weight, dropped,
+    )
+    # The published claim, item by item: every member's weight and *why* it qualified, plus the
+    # members this driver lost to the weight floor. Task 016 requires the "N independent sources"
+    # number to be auditable from the run output without re-running the selection.
+    for it in sorted(best, key=lambda x: -x.driver_weight):
+        logger.info(
+            "  member  event %s weight=%.2f (%s) — %r [%s]",
+            it.event_id, it.driver_weight, it.driver_weight_why or "unmeasured",
+            it.title, it.source_name,
+        )
+    for it in sorted(passed_over.get(uid, []), key=lambda x: -x.driver_weight):
+        logger.info(
+            "  EXCLUDED event %s weight=%.2f (%s) — %r [%s]; membership only, the item stays in "
+            "the corpus, the graph and every other section",
+            it.event_id, it.driver_weight, it.driver_weight_why or "unmeasured",
+            it.title, it.source_name,
+        )
+    logger.info(
+        "weak signal sources after weighting: %d — %s",
+        len(published), ", ".join(published) or "(none)",
     )
     return tuple(best), best[0].driver
 

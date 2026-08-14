@@ -44,6 +44,7 @@ def _driven(event_id, *, driver, driver_uid, mentions,
         graph_score=graph_score,
         convergence=len(pubs),
         contributing_sources=pubs,
+        coverage_sources=pubs,   # the item's own publishers — what the published count reads (016)
         driver=driver,
         driver_uid=driver_uid,
         driver_mentions=mentions,

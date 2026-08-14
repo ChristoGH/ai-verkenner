@@ -265,8 +265,21 @@ mention count (`GraphSignal.driver_mentions`, threaded from the same convergence
 query), because a weak signal is *corroborated but not yet loud*; "largest group" structurally
 selected the corpus's loudest entity (D-024). Generic concept nodes ("AI", "LLM", "Large language
 models", …) are categorically ineligible to *label* a cluster via `WEAK_DRIVER_STOPLIST` — selection
-only; nothing is removed from the graph or from scoring. Convergence maths, `GRAPH_MIN_SOURCES` and
-`priority.py` are untouched by this. It degrades to
+only; nothing is removed from the graph or from scoring. **Mention weight (task 016, current):** a
+shared `driver_uid` proves items name the same entity but not that they are *about* it, and the
+convergence read weights every mention equally — so a headline story and a one-line name-check
+corroborated a cluster equally. `scoring/mention_weight.py` scores each **entity–item link** from the
+item's own title and published body (1.0 named in the title · 0.8 named repeatedly · 0.6 named in the
+lead · 0.2 named once in passing · 0.0 never named), and `coherent_cluster` admits a member only at
+`>= CLUSTER_MEMBER_MIN_WEIGHT` (default 0.5). **Membership only** — an excluded item keeps its
+scores, its graph edges, its corpus row and its place in every other section — and it is **not a
+topicality gate**: an item strongly about the driver but off-topic for AI scores 1.0 and stays (that
+is corpus scope, task 011). It is string matching over text the corpus already holds: no LLM call, no
+embeddings, no re-enrichment. The published **"N independent sources"** is computed from the
+weighted members' own publishers via `sections.cluster_sources()` — one source of truth, shared with
+the post generator — rather than from the driving entity's graph-wide evidence, which includes
+publishers that never covered the selected development and which weighting cannot affect.
+Convergence maths, `GRAPH_MIN_SOURCES` and `priority.py` are untouched by this. It degrades to
 SQLite-only when Qdrant/Neo4j are down and persists as `Digest` (`GET /digests`, `GET /digests/{id}`,
 a Digests page). Generated via `python -m app.cli digest`.
 

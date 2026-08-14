@@ -1,6 +1,47 @@
 # Task 016 — Mention weight: a passing reference is not participation
 
-**Status: NOT STARTED** — authorised by [D-057](../docs/DECISIONS.md).
+**Status: DONE, at the review gate (2026-08-04)** — authorised by [D-057](../docs/DECISIONS.md).
+Implemented, verified on the real corpus, uncommitted. Do not self-merge.
+
+> **One acceptance criterion is not met and cannot be met by this mechanism** — the D-036 Mozilla
+> item names `Firefox` in its own headline and is substantively about it; excluding it needs a
+> **topicality** gate, which this task's non-goals forbid. Reported rather than engineered around:
+> see [D-068](../docs/DECISIONS.md) and the "Outcome" section below. Every other criterion is met.
+>
+> Decisions from this task: **D-064…D-068**.
+
+## Outcome (2026-08-04)
+
+**Shipped.** `backend/app/scoring/mention_weight.py` (new) scores each entity–item link from the
+item's own title and published body — `1.0` title · `0.8` repeated · `0.6` lead · `0.2` named once
+in passing · `0.0` never named — and `CLUSTER_MEMBER_MIN_WEIGHT` (0.5) gates cluster **membership
+only**. No LLM call, no embeddings, no re-enrichment; convergence maths, `GRAPH_MIN_SOURCES`,
+task 013's floors and stoplist, and `priority.py` are all untouched. The `tags` signal was evaluated
+and rejected on evidence (D-065): the NextBSD item is tagged `claude-code` identically to the item
+whose headline names it.
+
+**Measured** on `data/dev_corpus.db`, `build_digest_data(period_days=7, now=2026-07-21 10:45Z)`
+(D-023), graph already populated, $0:
+
+| | before (HEAD `bac590c`) | after |
+|---|---|---|
+| weak-signal driver | `Claude Code` | **`fine-tuning`** |
+| published "independent sources" | **4** | **3** |
+| actual publishers behind the cluster items | 2 | **3** |
+| cluster items substantively about the driver | 1 of 3 | **3 of 3** |
+
+- **NextBSD (D-052) — excluded**, weight `0.20`, *named once, body-only, at character 73 of 84*.
+  The `Claude Code` group drops to 1 item, falls under `WEAK_CLUSTER_MIN_ITEMS` and stops being
+  selectable — the honest degradation the stop condition calls correct. No floor was lowered.
+- **Still present everywhere else** (verified, not assumed): corpus row + URL, enrichment row,
+  5 graph relationships, and the Noise Report section. Graph convergence read unchanged (788
+  entities). 30 of ~85 quadrant entity–item links fell below the floor.
+- **Mozilla (D-036) — weight `1.00`, kept.** Not a mention-weight defect; see D-068.
+- 45 source URLs across 6 drafts, **0 missing**.
+
+**Tests:** `backend/tests/test_mention_weight.py`, 12 tests including the five named below, with both
+real cases pinned by name and by their real corpus text. Suite **230 passed / 1 skipped** for this
+task in isolation, against a re-verified **218 / 1 skipped** baseline at `bac590c` (D-022).
 
 ## Why now (the three-use-case threshold)
 

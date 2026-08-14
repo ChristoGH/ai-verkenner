@@ -63,6 +63,10 @@ def _converger(event_id, *, driver, driver_uid, pubs, priority_class="horizon_si
         graph_score=1.0 - event_id / 100,
         convergence=len(pubs),
         contributing_sources=pubs,
+        # `pubs` is what backs THIS item, so it is both the driver's graph evidence and the item's
+        # own coverage. The published count reads the latter (task 016): the claim must move when
+        # membership does, and `contributing_sources` is graph-wide and cannot.
+        coverage_sources=pubs,
         driver=driver,
         driver_uid=driver_uid,
     )

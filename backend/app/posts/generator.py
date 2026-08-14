@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.digests.sections import DigestData, DigestItem
+from app.digests.sections import DigestData, DigestItem, cluster_sources
 from app.posts.model import (
     DRAFT_BANNER,
     FACT_LABEL,
@@ -74,20 +74,20 @@ def _md_link(item: DigestItem) -> str:
 
 
 def _publishers(items: tuple[DigestItem, ...], driver: str = "") -> list[str]:
-    """Distinct publishers **backing the claim** (falls back to the item source name).
+    """Distinct publishers **backing the claim** — `sections.cluster_sources` over the cluster.
 
     On the converged path only items sharing the cluster's driving entity contribute, so
     "N independent sources" is N sources behind *one* claim. Unioning across unrelated items — the
     M7.5 defect — produced a number that was arithmetically correct and rhetorically false.
+
+    Counted from the cluster items' **own** publishers, so the number is a property of the items
+    standing behind the claim and moves when membership does (task 016: membership is now weighted,
+    and the count must be computed *after* weighting). It is deliberately not the driving entity's
+    `contributing_sources`, which is its evidence across the whole graph window and includes
+    publishers that covered the entity somewhere else entirely — a number weighting cannot affect.
     """
     contributing = [it for it in items if it.driver == driver] if driver else list(items)
-    seen: list[str] = []
-    for it in contributing:
-        names = it.contributing_sources or ((it.source_name,) if it.source_name else ())
-        for name in names:
-            if name and name not in seen:
-                seen.append(name)
-    return seen
+    return list(cluster_sources(contributing))
 
 
 def _all_urls(items: tuple[DigestItem, ...]) -> tuple[str, ...]:

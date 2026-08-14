@@ -55,6 +55,9 @@ def _item(
     driver: str = "",
     driver_uid: int | None = None,
     driver_mentions: int = 0,
+    driver_weight: float = 1.0,
+    driver_weight_why: str = "",
+    coverage_sources: tuple[str, ...] = (),
     published_offset_days: int = 0,
 ) -> DigestItem:
     return DigestItem(
@@ -85,6 +88,9 @@ def _item(
         driver=driver,
         driver_uid=driver_uid,
         driver_mentions=driver_mentions,
+        driver_weight=driver_weight,
+        driver_weight_why=driver_weight_why,
+        coverage_sources=coverage_sources,
     )
 
 
