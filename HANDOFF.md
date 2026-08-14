@@ -3,7 +3,7 @@
 > Volatile state. Overwritten at the end of every session; history lives in git.
 > Read this FIRST at the start of every session (see CLAUDE.md session protocol).
 
-## STATUS: GO — all four sessions ACCEPTED at the gate. Blocker is commit separation, not code.
+## STATUS: GO — commit separation DONE (five commits on `feat/m7.5-broad-run`); **Task 014 implemented and at the review gate**. Suite as last run: **229 passed / 1 skipped / 0 failed** — re-run before citing.
 
 <!-- GO = safe to start new work. NO-GO = fix the stated blocker first. -->
 
@@ -252,9 +252,13 @@ Task 012 (closed, D-057) · Task 013 (Defects A,B,C). Nothing is blocked on a ru
 4. **PUBLISH.** Christo only. The quality defects that held the drafts are all fixed.
 5. **Task 015** — relevance anchors over-demote; `relevance` and `actionability` never reach 4,
    so `immediate_priority` is now as starved as `horizon_signal` was (D-057).
-6. **Task 016** — mention weight. Third occurrence of the same pattern (D-036, D-052, and the
-   original 8-item cluster), so CLAUDE.md's three-use-case threshold is met (D-057).
-7. **D-013** — orphaned-backlog defect, still open, still needs its own task file.
+6. ~~**Task 016** — mention weight.~~ **DONE, at the review gate** — see the Task 016 section at the
+   bottom of this file. One acceptance criterion (the D-036 Mozilla item) is **not met and cannot be
+   met by mention weight**; it needs a ruling, not a fix (D-068).
+7. **Topicality as its own task** — the half of D-036 that mention weight cannot answer: an item can
+   be strongly about `Firefox` and not about AI. Recommended by D-068; **measure after the fresh
+   ingest first**, since task 011 already replaced the feed both offending items came from.
+8. **D-013** — orphaned-backlog defect, still open, still needs its own task file.
 
 ## Open questions / blockers
 
@@ -438,3 +442,230 @@ their fetch history fresh.
 **Note on suite counts in this tree:** the full-suite number flapped between 208 and 215 across
 consecutive runs while other sessions edited files mid-run. That is a shared-tree artefact, not a
 defect. 215 / 1 skipped / 0 failed is the settled number — re-run before citing it (D-022).
+
+---
+
+## Task 014 — entity normalisation (added 2026-08-04, at the review gate)
+
+**Implemented, verified on the real corpus, uncommitted. Do not self-merge.**
+
+**Precondition checked in code, not docs** (the task prompt requires it): Task 013 is merged at
+`1873d78` — quietness selection, `WEAK_DRIVER_STOPLIST` and the defect-C floors are all present in
+HEAD. Working tree was clean before this work began.
+
+Alias surface forms now resolve to one canonical entity **at graph projection time**, from
+`sources/entity_aliases.yaml` — a curated, human-readable file that is the complete record of every
+merge. No fuzzy matching, no embeddings, no learned resolution; an unlisted form stays its own
+entity. SQLite is never rewritten, so **deleting the YAML and re-running `graph-reindex` restores
+the previous graph exactly** — that is the rollback path (ADR 0001).
+
+- **Files:** **new** `backend/app/graph/aliases.py` · **new** `sources/entity_aliases.yaml` ·
+  **new** `backend/tests/test_entity_aliases.py` · `backend/app/graph/projection.py` ·
+  `backend/app/scoring/graph_signals.py` · `backend/app/core/config.py` (`entity_aliases_file`
+  only) · `CHANGELOG.md` · `docs/TECHNICAL_DESIGN.md` · `docs/DECISIONS.md` (D-058…D-061) ·
+  `tasks/014-entity-normalisation.md`.
+- The canonical uid is a **real `Entity.id`**, and `graph_signals` resolves the event's SQLite ids
+  through the same map — otherwise every aliased entity would silently lose its graph signal
+  (D-058). `INTERACTS_WITH` self-loops created by a merge are dropped so normalisation cannot
+  inflate the degree term (D-060).
+
+### Measured on the real corpus (LLM-free, $0)
+
+Window 2026-07-14 15:06 → 07-21 10:45. Before = the graph as built, read with resolution disabled;
+after = `graph-reindex` with the map on (a free rebuild).
+
+| | before | after |
+|---|---|---|
+| distinct Entity nodes | 793 | **788** |
+| distinct drivers in the quadrant | 30 | **26** |
+| largest group | 12 | **27** |
+| weak-signal driver selected | `Claude Code` (3 items) | **unchanged** |
+
+**The sequencing was load-bearing, and now there is a number for it.** The AI/LLM family merges
+from a largest fragment of 7 items into a single **27-item** group — by far the largest in the
+quadrant. Under the pre-013 "largest group wins" rule, this task would have produced the worst
+possible weak signal. With 013 in place the merged node is stoplisted and selection does not move;
+`test_canonical_concept_still_stoplisted` pins exactly that.
+
+### Two findings (D-061)
+
+- **The concept family is SIX rows, not the five D-024 recorded** — `Large Language Model`
+  (singular, id 61) was missed: `AI` · `Large Language Model` · `Large language models` · `LLM` ·
+  `LLMs` · `Artificial Intelligence`.
+- **No vendor-spelling family is fragmented in this corpus.** `OpenAI` / `Open AI`,
+  `DeepMind` / `Google DeepMind` and the rest each match zero or one row, so they sit in the map as
+  precautions. Today the entire measured effect is on the category node: the false-negative fix is
+  demonstrated (in tests, and by the AI family merging) but **not yet load-bearing on real output**.
+  It becomes load-bearing on the next ingest, when publishers spell vendors differently again.
+
+### Tests
+
+`backend/tests/test_entity_aliases.py` — the five the task names, plus
+`test_fragmented_cluster_merges_into_one_driver` (three vendor spellings becoming one 3-source
+driver) and two degradation/matching guards. Suite **229 passed / 1 skipped / 0 failed**, against a
+baseline **re-verified today in a clean worktree at `bac590c`: 218 passed / 1 skipped** — not the
+recorded number (D-022, addendum §4).
+
+---
+
+## Task 015 — relevance/actionability anchors: RUN ONCE, REVERTED (2026-08-04)
+
+**Criteria unmet and Task 012's gates lost, so the change was NOT shipped** (D-062). One sample run,
+hard stop, no iteration. `prompts/classify_item.md` and `backend/app/enrichment/fallback.py` are
+back at their **committed attempt-2 state** (`git status` clean on both); the three Task 015 tests
+were removed with them. Nothing to review in code — the deliverable is the finding.
+
+| Measure | Attempt 2 | Task 015 | Gate |
+|---|---|---|---|
+| `relevance ≥ 4` | 0 | **0** | ≥ 1 ❌ |
+| `actionability ≥ 4` | 0 | **0** | ≥ 1 ❌ |
+| quadrant occupancy | 2 | **0** | ≥ 1 ❌ **LOST** |
+| `sp ≥ rel + 2` | 4 | **2** | ≥ 3 ❌ **LOST** |
+| `r` *(diagnostic)* | 0.693 | 0.608 | — |
+
+### ⚠️ THE FINDING — bigger than this task
+
+**`USER_CONTEXT` is the binding constraint on `relevance`, not the anchors.** The rewritten anchors
+worked as written and correctly returned "no" on all 45 items, because the `user_context` actually
+sent to the model is the **309-character default in `config.py`**:
+
+> "…Stack: Python, FastAPI, SQLite, Qdrant, Neo4j, React/TypeScript, local sentence-transformers
+> embeddings, **and a cloud LLM**…"
+
+It names no products. So *"Anthropic pauses token-based billing for its Claude Agent SDK"* scored
+`relevance` **2** — Anthropic is not a named part of the stack — and a Vite release with a changelog
+scored `actionability` **2**. Both correct under the anchor as written.
+
+Meanwhile **`docs/USER_CONTEXT.md`** — which calls itself *"the ground truth AI Verkenner uses to
+score `relevance`"*, names Qdrant/Neo4j/FastAPI/React/Cursor/Voyage/AKS, and lists **"Claude /
+Anthropic model + Agent SDK releases"** under *strong relevance signals* — **is not wired into the
+runtime.** `USER_CONTEXT` is unset, so `config.py` falls back to the short paragraph.
+
+**Every `relevance` score this project has measured — including D-018's corpus baseline — was
+computed against a stack description omitting the user's most important named dependencies.**
+Task 012 attempt 1 flagged this in its §6 and it was not acted on.
+
+### Recommended next move — config + measurement, not another prompt rewrite
+
+Point `USER_CONTEXT` at `docs/USER_CONTEXT.md` and re-measure. Under that context the two headline
+misses meet the attempted `4` anchors on their face, so the same prompt that produced zero 4s here
+would be expected to produce several. The attempted anchor text is preserved verbatim in
+`docs/m8-calibration-notes.md` § Task 015 §5 so it need not be re-derived. Any retry should also fix
+the protection clause's asymmetry — its only illustration shows `strategic_potential` *low*, which
+is the most likely cause of the gate loss (9 items down, max 4 → 3), though on one run that cannot
+be cleanly separated from the ±1 model variance attempt 2 already documented.
+
+**Also open:** event 54 (*Inkling*), the regression fixture D-049 named, has now scored `sp 3` in
+**three consecutive runs**. Either the fixture is wrong or the 4/5 anchors do not reach the
+capability-under-a-permissive-licence case — settle it before citing it as a target again.
+
+**Cost:** $1.73 vs ~$1.60 approved, 8% over, recorded not absorbed (D-063). Running total on this
+prompt file across three runs: **$4.77**. Suite green: **226 passed / 1 skipped / 0 failed**
+(re-verify before citing — other sessions are writing to this tree).
+
+---
+
+## Task 016 — mention weight (added 2026-08-04 by the Task 016 session, at the review gate)
+
+**Complete, verified on the real corpus, uncommitted. Do not self-merge.** Appended, not
+overwritten, per D-042 — Task 014's and Task 015's sections are above this line and were not touched.
+**One acceptance criterion is deliberately NOT met — D-068, below. That needs a ruling, not a fix.**
+
+Membership only: convergence maths, `GRAPH_MIN_SOURCES`, IDF dampening, task 013's floors and
+stoplist and `priority.py` (D-014) are all untouched, and nothing is deleted from the corpus or the
+graph. Decisions **D-064…D-068** (highest before this session: D-063).
+
+### What changed
+
+- **`backend/app/scoring/mention_weight.py` (new)** — one entity–item link's weight from the item's
+  own title and published body: `1.0` named in the title · `0.8` named repeatedly · `0.6` named in
+  the lead · `0.2` named once, body-only · `0.0` never named. Whole-word, case-insensitive,
+  separator-tolerant, markup stripped. **No LLM call, no embeddings, no re-enrichment.**
+- **`backend/app/digests/sections.py`** — `DigestItem.driver_weight` / `driver_weight_why` /
+  `coverage_sources`; `coherent_cluster()` admits members at `>= CLUSTER_MEMBER_MIN_WEIGHT` and
+  logs every member's weight, every weight-excluded item and the post-weighting source list at INFO;
+  new `cluster_sources()` is the single source of truth for the published source count.
+- **`backend/app/posts/generator.py`** — `_publishers()` delegates to `cluster_sources()`.
+- **`backend/app/core/config.py`** (`cluster_member_min_weight` only) · `.env.example` ·
+  **new `backend/tests/test_mention_weight.py`** (12 tests) · `backend/tests/posts_fixtures.py`,
+  `graph_helpers.py`, `test_cluster_coherence.py`, `test_driver_eligibility.py` (fixtures gain
+  `coverage_sources` / a real body) · `CHANGELOG.md` · `docs/TECHNICAL_DESIGN.md` ·
+  `docs/DECISIONS.md` (D-064…D-068) · `tasks/016-mention-weight.md`.
+
+### Verification on the real corpus (LLM-free, $0)
+
+`data/dev_corpus.db` via `build_digest_data(period_days=7, now=2026-07-21 10:45Z)` — no `--now` flag
+exists (D-023). Graph already populated (2125 nodes / 3663 edges, **already re-indexed by the Task
+014 session**); no fetch, no enrichment, no spend. Window 2026-07-14 15:06 → 07-21 10:45, 221 events.
+
+| | before (HEAD `bac590c`) | after |
+|---|---|---|
+| weak-signal driver | `Claude Code` | **`fine-tuning`** (6 mentions, 3 items) |
+| published "independent sources" | **4** | **3** |
+| actual publishers behind those items | 2 | **3** |
+| cluster items substantively about the driver | 1 of 3 | **3 of 3** |
+
+Hook: *"The AI signal most feeds will miss this week: fine-tuning is quietly converging across 3
+independent sources."* Per-item audit from the run: ev205 `1.00` (named in the title) · ev166 `0.80`
+(3× in the body) · ev235 `0.80` (2× in the body). **30 of ~85** quadrant entity–item links fell below
+the floor. **45 source URLs across 6 drafts, 0 missing.** No drafts were written to `outputs/` — it
+is git-ignored and shared, and other sessions are live in this tree (the D-035 lesson).
+
+**D-052 NextBSD — excluded, and verified still present, not assumed:** weight `0.20` (*named once,
+body-only, at character 73 of 84*); corpus row + URL present, enrichment row present, **5 graph
+relationships** present, still named in the Noise Report. The `Claude Code` group drops to **1**
+item, falls under `WEAK_CLUSTER_MIN_ITEMS=3` and stops being selectable — the honest degradation the
+stop condition calls a correct result. **No floor was lowered.** The graph convergence read is
+unchanged at 788 entities.
+
+Two things worth knowing beyond the acceptance criteria:
+
+1. **The published "4 independent sources" was already wrong before weighting (D-066).** Those 4 are
+   the *entity's* publishers across the whole 30-day graph window; the 3 items standing behind the
+   claim came from **2** publishers. Corrected here because task 016 mandates the count be computed
+   after weighting — but it is an independent defect. **The task 013 eligibility floor still reads
+   the graph-wide number** (out of scope to change), so the two now measure different things and
+   should be reconciled by a future task.
+2. **D-052 also called event 45 (*grok-mermaid*) substantive; its own text disagrees** — one mention,
+   body-only, at character 349 of 483. It is excluded too. The weight is measured, not judged.
+
+### ⚠️ The criterion that is NOT met — needs a ruling (D-068)
+
+**"The Mozilla release item (D-036) does not count toward `Firefox`" is not reachable by mention
+weight.** Measured: that item names `Firefox` **in its own headline** and scores **1.00**, the top
+band. What it lacks is AI content — a **topicality** question, which this task's non-goals forbid and
+which D-036 itself diagnosed as corpus scope (task 011). Excluding it would mean smuggling in a
+topicality gate under a mention-weight name, or tuning a threshold until one item falls off it —
+`AGENT_ADDENDUM.md` §5's named failure. So it was reported, not worked around, and pinned by
+`test_mozilla_item_is_substantive_and_mention_weight_will_not_exclude_it`.
+
+**Nothing published depends on it:** the `Firefox` pair is 2 items / 2 sources and is already
+excluded by task 013's floor (D-047). **Recommendation: open topicality as its own task** rather than
+widening task 016 — the two filters answer different questions and a reader needs to know which one
+dropped an item. Task 011 has already replaced The Register's site-wide feed (the source of *both*
+D-036's and D-052's offending items) with its AI/ML feed, so a fresh ingest may make the question
+moot; measure before building.
+
+### Tests
+
+Baseline **re-verified, not trusted** (D-022 / addendum §4): **218 passed / 1 skipped** on a clean
+`git worktree` at HEAD `bac590c` today. Task 016 **in isolation** (HEAD + only this task's files, so
+Task 014's concurrent work is excluded from the attribution): **230 passed / 1 skipped / 0 failed**
+— exactly +12, this task's tests. The whole shared tree moves while other sessions work; **re-run
+before citing it.**
+
+`backend/tests/test_mention_weight.py` carries the five tests the task file names plus seven more.
+Both real cases are pinned **by name and with their real corpus text**, and every weight in the tests
+is computed by the shipped function rather than hand-set, so a regression in `mention_weight` fails
+the tests instead of leaving them asserting a typed-in constant.
+
+### Note on the shared tree
+
+`git status` was clean at this session's start; by the end **Task 014 and Task 015 files were also
+uncommitted in it**. `backend/app/core/config.py` holds one hunk from each of Task 014 and Task 016;
+`backend/app/digests/sections.py`, `posts/generator.py` and `scoring/mention_weight.py` are wholly
+this task's; `backend/app/scoring/graph_signals.py` and `backend/app/graph/projection.py` are wholly
+Task 014's and were **not opened** here. **Task 014's alias normalisation is live in this tree and
+in Neo4j** (the graph was already re-indexed), so combined-tree numbers differ from the isolated
+ones above — the driver, the exclusions and the published count are the same either way; only the
+shared-driver group count moves (20 combined vs 22 isolated). **Separate these before committing.**

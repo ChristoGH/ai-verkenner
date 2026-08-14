@@ -110,7 +110,25 @@ D-006 stray-database incident.
 When an analysis corrects an earlier decision, append a correcting entry rather than editing the
 original — the log is append-only, and being wrong earlier is part of the record.
 
-## 7. No git write operations from a sandboxed or mounted environment
+## 7. Verify an experiment's inputs before spending on its outputs
+
+> **Failure it prevents:** three billable calibration runs — **$4.77** — tuned the wording of
+> `prompts/classify_item.md` to make the `relevance` axis reach the top of its scale. The axis was
+> being scored against a **309-character placeholder** in `config.py`, because
+> `docs/USER_CONTEXT.md` — a file that opens by calling itself *"the ground truth AI Verkenner uses
+> to score `relevance`"* — is referenced in no Python file at all. The prompts were fine. They were
+> correctly answering a question about a context that named no vendor and no project.
+
+Before spending money on a prompt experiment, verify that the **inputs** are what you believe they
+are: not just the template, but every variable interpolated into it, read from the runtime path the
+production code actually takes. A config default that silently substitutes for a document is
+invisible in the prompt file, invisible in the output, and fatal to the experiment.
+
+Corollary: **a silent fallback is a defect, not a convenience.** Where code falls back from a
+configured source to a default, it must say so — once, at startup, naming the source in force. The
+cheapest possible version of this rule would have saved all three runs.
+
+## 8. No git write operations from a sandboxed or mounted environment
 
 > **Failure it prevents:** the Cowork session reaches this repo through a Linux VM mount. It ran
 > `git add` / `git commit`, could not unlink its own `.git/index.lock`, and left a stale lock the
