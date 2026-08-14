@@ -70,6 +70,13 @@ class Settings:
         # Root-level content, configurable. Defaults match the repo layout.
         self.prompts_dir: Path = _resolve(os.getenv("PROMPTS_DIR", "prompts"))
         self.sources_file: Path = _resolve(os.getenv("SOURCES_FILE", "sources/sources.yaml"))
+        # Curated entity-alias map (task 014): surface forms that mean one thing, merged onto one
+        # canonical uid at GRAPH PROJECTION time only. Explicit and human-editable — no fuzzy
+        # matching, no embeddings. A missing file means "normalise nothing", which is the
+        # pre-task-014 behaviour, so the graph still projects.
+        self.entity_aliases_file: Path = _resolve(
+            os.getenv("ENTITY_ALIASES_FILE", "sources/entity_aliases.yaml")
+        )
 
         # Ingestion HTTP behaviour. Polite user agent + a real timeout so one slow source
         # can't hang a run (the per-source fail-safe invariant).

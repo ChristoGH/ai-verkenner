@@ -36,6 +36,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session, select
 
 from app.core.config import settings
+from app.graph.aliases import EntityResolver
 from app.graph.store import ConvergenceStat, GraphStore
 from app.graph.util import to_utc
 from app.models import Entity, Relationship
@@ -140,10 +141,14 @@ def compute_signals(
     stats_by_uid: dict[int, ConvergenceStat] = {
         st.entity_uid: st for st in store.convergence(since)
     }
+    # The graph stores alias families under one CANONICAL uid (task 014), so this event's SQLite
+    # entity ids have to be resolved the same way before they can be looked up. Unmapped entities
+    # resolve to themselves, so this is a no-op when no alias file is present.
+    resolver = EntityResolver(session)
 
     out: dict[int, GraphSignal] = {}
     for event_id in event_ids:
-        entity_ids = _event_entity_ids(session, event_id)
+        entity_ids = resolver.resolve_all(_event_entity_ids(session, event_id))
         relevant = [stats_by_uid[eid] for eid in entity_ids if eid in stats_by_uid]
         if not relevant:
             out[event_id] = _ZERO
@@ -172,7 +177,9 @@ def compute_signals(
         score = driver_contrib + w_rec * recency_factor
 
         if driver_contrib > 0.0:
-            driver_name = _entity_name(session, driver_stat.entity_uid)
+            driver_name = resolver.display_name(
+                driver_stat.entity_uid, _entity_name(session, driver_stat.entity_uid)
+            )
             out[event_id] = GraphSignal(
                 convergence=driver_stat.distinct_sources,
                 degree=driver_stat.degree,

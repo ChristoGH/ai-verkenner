@@ -3,6 +3,72 @@
 Notable changes per task/milestone. Newest first. History lives in git; this file records *what
 changed and why it mattered*, at the granularity of a task file.
 
+## Task 014 — Entity normalisation: one concept, one uid (2026-08-04)
+
+**Alias surface forms now resolve to one canonical entity at graph projection time.** Sequenced
+behind Task 013 by [D-026], and that sequencing turned out to be load-bearing — see the measurement.
+
+D-024 found several entity uids for one concept in a single week's horizon quadrant. Two harms:
+inflated driver counts (cosmetic) and **fragmented clusters** — items that genuinely converge on one
+entity split across alias uids, dropping real clusters below `WEAK_CLUSTER_MIN_ITEMS` and losing
+them. The second is a false-negative generator in an early-warning product.
+
+### Changed
+
+- **`sources/entity_aliases.yaml`** (new) — the complete, human-readable record of every merge.
+  Curated and explicit: no fuzzy matching, no embeddings, no learned entity resolution. An unlisted
+  surface form stays its own entity.
+- **`backend/app/graph/aliases.py`** (new) — `AliasMap` (surface form → canonical display name) and
+  `EntityResolver` (`Entity.id` → canonical `Entity.id`). Matching is on the normalised name with a
+  conservative trailing-`s` fold used **only** to find a map key, never to merge two unlisted
+  entities ([D-059]). A missing or malformed file degrades to "normalise nothing", loudly.
+- **`backend/app/graph/projection.py`** — Entity nodes and `MENTIONS` edges carry the canonical uid
+  and display name; `INTERACTS_WITH` self-loops created by a merge are dropped so the merge cannot
+  inflate the degree term ([D-060]). SQLite is untouched — `graph-reindex` rebuilds the normalised
+  graph from it alone (ADR 0001), and deleting the YAML restores the old graph exactly.
+- **`backend/app/scoring/graph_signals.py`** — resolves the event's SQLite entity ids through the
+  same map before the convergence lookup, so both sides of the identity agree ([D-058]).
+
+### Measured on the real corpus (LLM-free, $0)
+
+`data/dev_corpus.db`, window 2026-07-14 15:06 → 07-21 10:45, before = the graph as built with
+resolution disabled, after = `graph-reindex` with the map on.
+
+| | before | after |
+|---|---|---|
+| distinct Entity nodes | 793 | **788** |
+| distinct drivers in the quadrant | 30 | **26** |
+| largest group | 12 | **27** |
+| weak-signal driver selected | `Claude Code` (3 items) | **`Claude Code` (3 items)** |
+
+**The fragmented cluster that merged:** the AI/LLM concept family — six rows, not the five D-024
+recorded (`Large Language Model` singular was missed) — goes from a largest fragment of 7 items to
+**27**. That is exactly the hub D-026 predicted, and under the old "largest group wins" rule this
+task would have created the worst possible weak signal. With Task 013 in place the selection is
+**unchanged**, because the merged node is stoplisted — which is the whole point of the ordering and
+is pinned by `test_canonical_concept_still_stoplisted`.
+
+**Honest caveat ([D-061]):** no vendor-spelling family is fragmented in this corpus — `OpenAI` /
+`Open AI`, `DeepMind` / `Google DeepMind` and the rest each match zero or one row. They are in the
+map as precautions. So today the entire measured effect is on the category node, and the
+false-negative fix is demonstrated (in tests, and by the AI family merging) but not yet load-bearing
+on real output.
+
+### Tests
+
+`backend/tests/test_entity_aliases.py` — `test_alias_map_collapses_concept_family` ·
+`test_canonical_concept_still_stoplisted` · `test_normalisation_is_idempotent` ·
+`test_unmapped_entities_pass_through_unchanged` · `test_reindex_rebuilds_from_sqlite_alone`, plus
+`test_fragmented_cluster_merges_into_one_driver` (the false-negative fix, three vendor spellings
+becoming one 3-source driver) and two degradation/matching guards. Backend suite: **229 passed, 1
+skipped, 0 failed**, against a baseline **re-verified today at `bac590c`: 218 passed, 1 skipped**.
+
+### Not in this change
+
+No change to entity **extraction** — this normalises what enrichment already produced. Convergence
+maths, `GRAPH_MIN_SOURCES` and `priority.py` untouched. Task 013's stoplist is intact and still
+catches the merged node.
+
 ## Task 012 — Enrichment score calibration: decoupling `strategic_potential` from `relevance` (2026-08-04)
 
 **The `horizon_signal` quadrant is reachable for the first time — and the acceptance metric still

@@ -1,0 +1,77 @@
+# Entity aliases — one concept, one uid (task 014, sequenced by D-026 after task 013).
+#
+# Every merge in this file is a human decision, and this file is the whole record of them. There is
+# no fuzzy matching, no embedding similarity and no learned entity resolution anywhere in the
+# pipeline: if two surface forms are not listed here, they stay separate entities (D-024/D-026).
+#
+# HOW IT IS APPLIED
+#   * At **graph projection time only** (`app/graph/projection.py`). SQLite keeps every extracted
+#     entity row exactly as enrichment produced it — nothing is deleted or rewritten, and
+#     `graph-reindex` rebuilds the normalised graph from SQLite alone (ADR 0001).
+#   * Matching is on the **normalised** name (lower / trim / collapse whitespace — the same
+#     `normalise_entity_name` key entity resolution already uses), plus a conservative trailing-`s`
+#     fold so `LLMs` finds `llm` even when only one form is listed. Both forms are listed anyway.
+#   * The KEY is the canonical display name that the merged graph node carries. The VALUES are the
+#     surface forms that fold into it.
+#
+# WHAT IT FIXES
+#   Fragmentation is the damaging half: items that genuinely converge on one entity were split
+#   across alias uids, dropping real clusters below WEAK_CLUSTER_MIN_ITEMS and losing them —
+#   a false-negative generator in an early-warning product. Inflated driver counts are the
+#   cosmetic half.
+#
+# WHAT IT DOES NOT DO
+#   Merging does not make a concept publishable. The AI/LLM family below is the *category* this
+#   whole corpus sits in, and it stays on `WEAK_DRIVER_STOPLIST` (task 013) after merging — a test
+#   pins exactly that. Normalisation and exclusion are complementary, not alternatives.
+
+aliases:
+  # ---- the category itself -------------------------------------------------------------------- #
+  # D-024 found FIVE uids for one concept in a single week's quadrant. They are merged here for
+  # honest driver counts; the merged node remains stoplisted and can never label a weak signal.
+  "AI":
+    - "artificial intelligence"
+    - "a.i."
+    - "generative AI"
+    - "GenAI"
+    - "LLM"
+    - "LLMs"
+    - "large language model"
+    - "large language models"
+    - "large-language model"
+    - "large-language models"
+
+  # ---- vendor and lab spellings ---------------------------------------------------------------- #
+  # Same organisation, different house style across publishers. Merging these is what recovers
+  # fragmented clusters: three publishers writing "Open AI", "OpenAI" and "OpenAI Inc" were three
+  # drivers of one item each, not one driver of three.
+  "OpenAI":
+    - "Open AI"
+    - "OpenAI Inc"
+    - "OpenAI Inc."
+  "Google DeepMind":
+    - "DeepMind"
+    - "Google Deepmind"
+  "Hugging Face":
+    - "HuggingFace"
+    - "huggingface.co"
+  "Meta AI":
+    - "Meta AI Research"
+    - "FAIR"
+  "Microsoft":
+    - "Microsoft Corp"
+    - "Microsoft Corporation"
+  "Anthropic":
+    - "Anthropic PBC"
+
+  # ---- product / project spellings ------------------------------------------------------------- #
+  "Claude Code":
+    - "claude-code"
+  "Claude Agent SDK":
+    - "Claude Agents SDK"
+    - "claude agent sdk"
+  "Qdrant":
+    - "qdrant.tech"
+  "Neo4j":
+    - "Neo4J"
+    - "neo4j.com"

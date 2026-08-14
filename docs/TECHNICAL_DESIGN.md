@@ -88,6 +88,14 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   implementations (`neo4j_store` real Cypher, `memory` in-memory for tests), `projection`
   (`project_event` / `project_new_events` degrade-don't-crash / `graph_reindex` rebuild-from-SQLite),
   and `util` (label/edge whitelists, entity-type → label, UTC normalisation). Idempotent MERGEs.
+  **Entity normalisation (task 014):** `aliases.py` resolves curated surface forms onto one
+  canonical `Entity.id` at projection time, from the human-editable `sources/entity_aliases.yaml` —
+  explicit map only, no fuzzy matching or learned resolution, and an unlisted form stays its own
+  entity. SQLite is never rewritten, so deleting the YAML and re-running `graph-reindex` restores
+  the un-normalised graph exactly (ADR 0001). `scoring/graph_signals` resolves the event's SQLite
+  entity ids through the same map, so both sides of the identity agree. Normalisation makes the
+  merged concept node *larger*, which is why task 013's driver stoplist had to land first (D-026)
+  and why a test pins that the canonical node stays ineligible to label a weak signal.
 - **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, real and tested),
   scoring scale constants, `ranking.py` (hype-aware salience + the M5 `rank_with_graph` blend), and
   `graph_signals.py` (convergence/centrality/recency, hub-dampened in M5.5 — IDF + distinct-source

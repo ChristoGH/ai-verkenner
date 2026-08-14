@@ -21,6 +21,7 @@ import logging
 
 from sqlmodel import Session, select
 
+from app.graph.aliases import EntityResolver
 from app.graph.store import GraphStore
 from app.graph.util import (
     ABOUT,
@@ -47,8 +48,17 @@ def _clean(props: dict) -> dict:
     return {k: v for k, v in props.items() if v is not None}
 
 
-def project_event(store: GraphStore, session: Session, event: Event) -> None:
-    """Project one enriched Event into the graph. Idempotent (MERGE). May raise (caller degrades)."""
+def project_event(
+    store: GraphStore, session: Session, event: Event, *, resolver: EntityResolver | None = None
+) -> None:
+    """Project one enriched Event into the graph. Idempotent (MERGE). May raise (caller degrades).
+
+    `resolver` collapses alias surface forms onto one canonical entity uid (task 014). It is built
+    once per run by the callers below; when omitted it is built here, so a single-event projection
+    still normalises. SQLite is never rewritten — only the graph node identity is canonical.
+    """
+    if resolver is None:
+        resolver = EntityResolver(session)
     enriched = session.exec(
         select(EnrichedItem).where(EnrichedItem.event_id == event.id)
     ).first()
@@ -98,10 +108,16 @@ def project_event(store: GraphStore, session: Session, event: Event) -> None:
         entity = session.get(Entity, entity_id)
         if entity is None:
             continue
+        # Alias resolution (task 014): the node carries the CANONICAL uid and display name, so two
+        # spellings of one thing are one node and their mentions accumulate instead of fragmenting.
+        # Unmapped entities resolve to themselves, unchanged.
+        canonical_uid = resolver.resolve(entity.id)
+        canonical_name = resolver.display_name(entity.id, entity.name)
         extra = entity_label(entity.type)
         store.merge_node(
-            ENTITY, entity.id,
-            _clean({"name": entity.name, "normalised_name": entity.normalised_name,
+            ENTITY, canonical_uid,
+            _clean({"name": canonical_name,
+                    "normalised_name": normalise_entity_name(canonical_name),
                     "type": entity.type}),
             extra_labels=(extra,) if extra else (),
         )
@@ -109,14 +125,20 @@ def project_event(store: GraphStore, session: Session, event: Event) -> None:
         for item in items:
             store.merge_edge(
                 MENTIONS, src_label=ITEM, src_uid=item.id,
-                dst_label=ENTITY, dst_uid=entity.id,
+                dst_label=ENTITY, dst_uid=canonical_uid,
                 props=_clean({"ts": to_utc(item.published_at)}),
             )
 
     for rel in rels:
+        subject_uid = resolver.resolve(rel.subject_entity_id)
+        object_uid = resolver.resolve(rel.object_entity_id)
+        if subject_uid == object_uid:
+            # Two aliases of one entity "interacting" is an artefact of the merge, not a fact about
+            # the world — a self-loop would inflate the canonical node's degree (D-060).
+            continue
         store.merge_edge(
-            INTERACTS_WITH, src_label=ENTITY, src_uid=rel.subject_entity_id,
-            dst_label=ENTITY, dst_uid=rel.object_entity_id,
+            INTERACTS_WITH, src_label=ENTITY, src_uid=subject_uid,
+            dst_label=ENTITY, dst_uid=object_uid,
             props=_clean({"ts": to_utc(rel.ts), "kind": rel.predicate}),
         )
 

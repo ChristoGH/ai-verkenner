@@ -1,7 +1,20 @@
 # Task 014 — Entity normalisation: one concept, one uid
 
-**Status: NOT STARTED — BLOCKED on [Task 013](013-driver-eligibility.md) merging first.**
-Raised by [D-024](../docs/DECISIONS.md), sequenced by [D-026](../docs/DECISIONS.md).
+**Status: IMPLEMENTED — AT THE REVIEW GATE (2026-08-04).** Precondition verified in code, not
+docs: Task 013 is merged at `1873d78` (quietness selection + `WEAK_DRIVER_STOPLIST` + the defect-C
+floors are all present in HEAD). Raised by [D-024](../docs/DECISIONS.md), sequenced by
+[D-026](../docs/DECISIONS.md); decisions D-058…D-061 recorded.
+
+**Measured on 2026-07-14 → 07-21** (before = graph as built with resolution disabled, after =
+`graph-reindex` with the map on): distinct entities **793 → 788**, distinct drivers **30 → 26**,
+largest group **12 → 27**, weak-signal driver **`Claude Code` (3 items) → unchanged**.
+
+**The sequencing was load-bearing.** The AI/LLM family — **six** rows, not the five D-024 recorded —
+merges from a largest fragment of 7 items into a single **27-item** group, by far the largest in the
+quadrant. Under the old "largest group wins" rule this task would have produced the worst possible
+weak signal; with 013 in place the merged node is stoplisted and selection does not move.
+See [D-061](../docs/DECISIONS.md) for the caveat that no *vendor* family is fragmented in this
+corpus, so the false-negative fix is demonstrated but not yet load-bearing on real output.
 
 ## ⚠️ Read this before starting
 
