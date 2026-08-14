@@ -1,7 +1,25 @@
 # Task 015 — `relevance` anchors over-demote: the top of the scale is unreachable
 
-**Status: NOT STARTED** — raised by Task 012 attempt 2, authorised by
-[D-057](../docs/DECISIONS.md).
+**Status: RUN ONCE — CRITERIA UNMET, TASK 012 GATES LOST, CHANGE REVERTED** ([D-062](../docs/DECISIONS.md)).
+Raised by Task 012 attempt 2, authorised by [D-057](../docs/DECISIONS.md).
+
+The anchors were rewritten per scope points 1–4 and one 45-item sample was run on the same items
+(identity verified before spending). Result: `relevance ≥ 4` **0**, `actionability ≥ 4` **0**, and
+**both Task 012 gates lost** — quadrant occupancy 2 → **0**, `sp ≥ rel + 2` 4 → **2**. Per this
+file's own acceptance rule the change was **not shipped**: `prompts/classify_item.md` and
+`fallback.py` are back at their committed attempt-2 state.
+
+**The anchors were not the binding constraint.** They worked as written and correctly returned "no"
+on all 45 items, because the `user_context` actually sent is the **309-character default in
+`config.py`** — *"…and a cloud LLM"* — which names no products. `docs/USER_CONTEXT.md`, which the
+repo itself calls the ground truth for `relevance` and which lists "Claude / Anthropic model + Agent
+SDK releases" as a strong signal, **is not wired into the runtime**. Full numbers, the 10-item hand
+spot-check, the preserved anchor text and the recommended next move are in
+[`docs/m8-calibration-notes.md`](../docs/m8-calibration-notes.md) § Task 015. Cost **$1.73** vs
+~$1.60 approved ([D-063](../docs/DECISIONS.md)).
+
+**Do not re-run this task as written.** The next experiment is configuration, not prompting — see
+D-062.
 
 **Not a third iteration of Task 012.** Task 012 is closed: it set out to decouple
 `strategic_potential` from `relevance` and it succeeded — the `horizon_signal` quadrant is reachable

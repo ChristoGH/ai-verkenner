@@ -346,3 +346,178 @@ was not moved, and the run is reported against it as written.
    cleaner, fuller corpus is the cheapest next signal.
 3. **Model variance.** Event 179 moved `sp 4 → 3` between runs on identical input. Single-run
    deltas of one point are inside the noise floor; only distributional shifts should be trusted.
+
+---
+
+## Task 015 — `relevance` / `actionability` anchor recalibration
+
+**Date:** 2026-08-04 · **Status: CRITERIA UNMET AND TASK 012'S GATES LOST — CHANGE REVERTED, NOT
+SHIPPED.** Per the task file (*"losing either means the trade went the wrong way — report, do not
+ship"*) the prompt is back at its attempt-2 state, which is the last state measured to hold the
+gates. One sample run, hard stop, no iteration.
+
+- Raw output: `docs/m8-calibration-task015.json` (prior runs untouched)
+- **Same 45 items**, verified *before* spending: the sampler's `event_id` list was compared against
+  both `m8-calibration.json` and `m8-calibration-attempt2.json` — identical, same order.
+- Same seed (12), strata, corpus (read-only), model (`claude-opus-4-8`), and `USER_CONTEXT`.
+- The attempted prompt is preserved verbatim in §5 below so it can be re-applied without redoing it.
+
+### 1. What was changed (and has since been reverted)
+
+Three edits to `prompts/classify_item.md`, plus the fallback mirror:
+
+1. `relevance` **4** and **5** re-gated on evidence the *item* carries — "names a part of their stack
+   **and** reports a concrete change to it: a release, a breaking change, a security advisory or CVE,
+   a deprecation, a migration, or a change to pricing, rate limits or an API contract"; `5` = the
+   same "on a clock". Plus an explicit note that the model is *not* expected to know what is
+   deployed, and that 4/5 are **narrower** than 3 (to stop the mass drifting up).
+2. `actionability` **4** and **5** re-gated on whether the item *supplies the specifics* — a version
+   to upgrade to, a documented migration path, a config change, runnable published weights — with
+   "a `4` does not require the action to be large".
+3. A protection clause for Task 012: *"Raising `relevance` must never raise `strategic_potential` …
+   score `strategic_potential` first … and do not revisit it."*
+4. `fallback.py`: relevance cap 4 → 3, since keyword overlap can evidence "about the stack" but
+   never "a change you must respond to".
+
+### 2. Result — every criterion unmet, and both Task 012 gates lost
+
+| Measure | Attempt 2 | **Task 015** | Gate |
+|---|---|---|---|
+| items at `relevance ≥ 4` | 0 | **0** | ≥ 1 ❌ |
+| items at `actionability ≥ 4` | 0 | **0** | ≥ 1 ❌ |
+| quadrant occupancy (`rel ≤ 2 AND sp ≥ 4`) | 2 | **0** | ≥ 1 ❌ **LOST** |
+| items at `sp ≥ rel + 2` | 4 | **2** | ≥ 3 ❌ **LOST** |
+| `r(relevance, strategic_potential)` *(diagnostic, not a gate)* | 0.693 | **0.608** | — |
+
+Per-axis mean and max, attempt 2 → Task 015:
+
+| Axis | Mean | Max | Task-015 distribution |
+|---|---|---|---|
+| `relevance` | 1.33 → **1.36** | 3 → **3** | 0:7 · 1:18 · 2:17 · 3:3 |
+| `novelty` | 1.87 → **1.91** | 3 → **3** | 0:1 · 1:16 · 2:14 · 3:14 |
+| `actionability` | 1.00 → **1.04** | 3 → **3** | 0:12 · 1:23 · 2:6 · 3:4 |
+| `strategic_potential` | 1.73 → **1.64** | 4 → **3** | 0:10 · 1:8 · 2:15 · 3:12 |
+| `hype` | 1.80 → **1.71** | 5 → **5** | 0:3 · 1:24 · 2:7 · 3:6 · 4:4 · 5:1 |
+
+Movement vs attempt 2: `relevance` −1 on 3 items, +1 on 4, **unchanged on 38**.
+`strategic_potential` **−1 on 9 items**, +1 on 5, unchanged on 31 — and its **max fell 4 → 3**,
+which is what emptied the quadrant.
+
+### 3. Diagnosis — the anchors were not the binding constraint; `USER_CONTEXT` is
+
+**The rewritten anchors worked exactly as written, and correctly returned "no" on all 45 items.**
+
+The new `relevance 4` requires the item to *name a part of the stack in `user_context`*. Here is the
+`user_context` the model actually received, in full — 309 characters, from the default in
+`config.py`:
+
+> A solo engineer building AI Verkenner: a personal AI intelligence and early-warning system. Stack:
+> Python, FastAPI, SQLite, Qdrant, Neo4j, React/TypeScript, local sentence-transformers embeddings,
+> **and a cloud LLM**. Interests: LLM tooling, RAG, vector/graph databases, agentic systems, and AI
+> developer tooling.
+
+It names **no products** where it matters most. "A cloud LLM" is not "Anthropic" or "the Claude Agent
+SDK". So:
+
+- **ev1** — *"Anthropic pauses token-based billing for its Claude Agent SDK"* — is a pricing change
+  to a service the user builds on, the `4` anchor almost verbatim. It scored **`relevance` 2**,
+  because Anthropic is not a named part of the stack in `user_context`. The model was right.
+- **ev46** — *`plugin-legacy@8.2.1`* (Vite) — is a released version with a changelog, the
+  `actionability 4` anchor almost verbatim. It scored **`actionability` 2** (up from 0 — the anchor
+  *did* fire partially), because Vite is not named either; `user_context` says "React/TypeScript".
+
+Meanwhile [`docs/USER_CONTEXT.md`](USER_CONTEXT.md) — hand-maintained, and the file that calls itself
+*"the ground truth AI Verkenner uses to score `relevance`"* — names Qdrant, Neo4j, FastAPI, React,
+Cursor, Voyage embeddings, AKS/Knative, and lists **"Claude / Anthropic model + Agent SDK releases"**
+under *strong relevance signals (elevate)*. **It is not wired into the runtime.** `USER_CONTEXT` is
+unset in this environment, so `config.py` falls back to the 309-character paragraph.
+
+**Consequence, and it is bigger than this task:** every `relevance` score this project has ever
+measured — D-018's corpus baseline included — was computed against a stack description that omits
+the user's most important named dependencies. Task 012 attempt 1 flagged the substitution in its §6
+and nobody acted on it; this run shows it is not a footnote but the binding constraint on the top of
+the scale.
+
+**Why `strategic_potential` fell, stated with its uncertainty.** Nine items lost a point and the max
+fell 4 → 3, which cost both gates. The most likely cause is edit 3: the protection clause's only
+worked illustration shows `strategic_potential` **low** (*"can be `relevance 4–5` while being
+`strategic_potential 0–1`"*), and "do not revisit it" adds a second downward nudge — an asymmetric
+instruction where a symmetric one was intended. It **cannot be cleanly separated from run-to-run
+variance** on a single run: attempt 2 recorded ev179 moving `sp 4 → 3` on identical input, so a
+one-point drift is inside the noise floor. Nine down against five up with the max collapsing is
+larger than pure noise, but the attribution is *inferred*, not measured.
+
+### 4. Hand spot-check — 10 items (attempt 2 → Task 015)
+
+**No inflation: `relevance` moved +0.03 and `actionability` +0.04 in the mean.** The problem is the
+opposite — nothing moved where it needed to.
+
+| Event | Item | a2 → 015 | Verdict |
+|---|---|---|---|
+| 1 | *Anthropic pauses Claude Agent SDK billing* | rel 2 → **2** | ❌ The headline miss. Should be a 4 under the new anchor; `user_context` never names Anthropic, so the gate cannot close. Not the anchor's fault. |
+| 46 | *`plugin-legacy@8.2.1`* (Vite) | act 0 → **2**, hype 1 → **0** | ⚠️ The anchor half-fired: a bare changelog link moved 0 → 2, but not to 4, because Vite is not a named stack element. `hype 0` for a primary changelog is right. |
+| 38 | *Claude `web_fetch` exfiltration* (Willison) | sp 4 → **3** | ❌ **Gate loss.** One of attempt 2's two quadrant items, and the clearest `sp 4` in the corpus. Losing it is the strongest evidence that edit 3 pushed `strategic_potential` down. |
+| 180 | *Frontier LLMs vs evil agents* (The Register) | sp 4 → **3**, act 2 → **1** | ❌ **Gate loss**, the other quadrant item. Also a headline-only stub, so thin evidence either way. |
+| 54 | *Inkling, open-weights 975B, Apache-2.0* | rel 2 → **3**, sp 3 → **3** | ⚠️ `rel 3` is the better read (it is a usable model release). But `sp` **still 3** — the regression fixture D-049 named has now missed in three consecutive runs. |
+| 64 | *Kimi K3 / pelican benchmark* (Willison) | act 2 → **3**, sp 2 → **3** | ✅ Defensible both ways: a concrete benchmark to run, and open-weight frontier capability moves a real constraint. |
+| 134 | *WorldCupArena: evaluation of LMs and agents* (arXiv) | rel 2 → **1**, sp 3 → **2** | ❌ Wrong direction. Evaluation methodology is squarely in the named problem space; attempt 2's `sp 3` was better. |
+| 81 | *LLM cliché highlighter* (Willison) | sp 1 → **0**, hype 1 → **0** | ✅ A toy; `sp 0` is honest. `hype 0` correct for a primary post. |
+| 94 | *nascheme/quixote* (a Python repo) | rel 1 → **2** | ⚠️ Python *is* named in `user_context`, so `2` is defensible — and it shows the anchors are reading the stack list literally, which is exactly the diagnosis. |
+| 228 | *memloom — local-first agent memory* | rel 3 → **2**, nov 1 → **2** | ⚠️ Borderline. A day-old repo with a one-line description; `rel 2` is defensible, `rel 3` was too. |
+
+**Hype inversion: correct on every sampled item, at both ends.** `hype 5` on sponsored Gartner
+content; `4` on corporate announcement posts (DeepMind, GitHub, Ars opinion, a Register explainer);
+`0` on primary sources (a Vite changelog, two Willison posts). No substantive primary source carried
+a high hype number, and nothing inverted.
+
+### 5. The attempted prompt text, preserved
+
+Kept so this does not have to be re-derived if the `USER_CONTEXT` fix below makes it worth retrying.
+A copy of the full attempted template is at
+`…/scratchpad/classify_item.task015-attempt.md`; the three edits are quoted verbatim in §1 above,
+and the anchor blocks were:
+
+```
+relevance
+- `4` — names a part of their stack (a language, framework, database, model provider, library or
+  service in `user_context`) **and** reports a concrete change to it: a release, a breaking change,
+  a security advisory or CVE, a deprecation, a migration, or a change to pricing, rate limits or an
+  API contract. The user has to decide what to do about it — that decision is what a `4` is.
+- `5` — a `4` that is on a clock: an actively exploited vulnerability, a breaking change that has
+  already shipped, or a dated cutoff. A `5` means today's work stops for this.
+
+actionability
+- `4` — the item supplies the specifics: a released version to upgrade to, a documented migration
+  path, a patch or config change to apply, or published weights/code you could run as they stand.
+- `5` — a `4` that is on a clock: a fix for an actively exploited vulnerability, a breaking change
+  already shipped, or a dated deprecation deadline.
+```
+
+### 6. Cost
+
+| | |
+|---|---|
+| Calls | 45 (0 failures, 0 retries) |
+| Tokens | 215,181 in / 26,286 out |
+| **Cost** | **$1.73** against ~$1.60 approved — **8% over**, recorded per the task's cost gate (D-063) |
+
+Running total across all three runs on this prompt file: **$4.77**.
+
+### 7. What this leaves
+
+**Do not retry the anchors as they stand.** They are not the binding constraint, and a fourth run
+against the same 309-character `USER_CONTEXT` would return the same "no" on the same items.
+
+**The cheap, high-value experiment is one line of configuration, not another prompt rewrite:** point
+`USER_CONTEXT` at [`docs/USER_CONTEXT.md`](USER_CONTEXT.md) — the file the repo already calls the
+ground truth for `relevance` — and re-measure. Under that context, ev1 (Claude Agent SDK) and ev46
+(Vite) both meet the attempted `4` anchors on their face, so the same prompt that scored zero 4s
+here would be expected to produce several. That is a **config + measurement** task, not a prompting
+one, and it should carry the fix for edit 3's asymmetry (illustrate `strategic_potential` moving in
+**both** directions, and drop "do not revisit it").
+
+**Second finding, independent of the above:** the regression fixture D-049 named — event 54,
+*Inkling* — has now been missed in three consecutive runs (`sp 3` every time). Either the item is
+genuinely a 3 and the fixture is wrong, or the `4`/`5` anchors do not reach the
+"capability-under-a-permissive-licence" case. That is worth settling before it is cited again as a
+target.
