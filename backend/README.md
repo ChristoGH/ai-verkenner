@@ -60,6 +60,12 @@ run. Ingestion (`app.ingestion.run_ingestion`) is a library call, not yet an end
 ### Store + enrich + graph CLI
 
 ```bash
+# ⚠️ RUN EVERY COMMAND BELOW FROM THE REPOSITORY ROOT, never from backend/, with the venv
+#    active (`source backend/.venv/bin/activate`). DATABASE_URL is a RELATIVE path, so the
+#    working directory chooses the database: running these from backend/ silently creates and
+#    fills backend/data/, and enrichment is then billed against a stray corpus. That is not
+#    hypothetical — it happened, and it cost ~15 enrichments (D-006).
+
 # Ingest → SQLite + Qdrant → dedup → enrich (M4) → project to Neo4j (M5):
 python -m app.cli run
 python -m app.cli run --no-enrich   # skip enrichment (M3 behaviour)
