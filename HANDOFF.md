@@ -3,7 +3,119 @@
 > Volatile state. Overwritten at the end of every session; history lives in git.
 > Read this FIRST at the start of every session (see CLAUDE.md session protocol).
 
+## STATUS: GO @ `d1c265f` — **commits done; the fetch is in and the $1.44 spend is GATED on Christo** (2026-08-19)
+
+<!-- The SHA above is the HEAD this status line describes. If `git rev-parse --short HEAD` does
+     not match it, this file is stale — trust the repo, not this line (addendum §1). -->
+
+**Everything that was uncommitted is now committed**, on `feat/m7.5-broad-run`, in three commits:
+`eeb7f97` task 017 (D-070..D-077) · `199d317` addendum §3.1/§8 + task 018 + prior HANDOFF
+(D-078, D-079) · `d1c265f` doc-bug fixes + `hit_rate.py` (D-080..D-084). Only
+`docs/inbox-digests/` remains untracked — Christo's call, deliberately not committed.
+
+**Suite re-verified this session, not inherited (D-022):** `320ab8a` baseline **238 passed /
+1 skipped** in a detached worktree; commit `eeb7f97`'s own tree **247 / 1**; working tree after
+the doc fixes **247 / 1**. The +9 is attributable to task 017.
+
+**THE ONE THING WAITING ON CHRISTO: the ~$1.44 backfill of 40 items (STEP 4). Not run.**
+Nothing in this session cost anything. The measurement that was supposed to inform that
+decision has been taken, and it argues against spending yet — see *The fetch* below.
+
+### The fetch — free, token live, 2026-08-19 (D-081, D-082)
+
+`run --no-enrich --no-graph`: **218 fetched, 182 new, 0 errors**, `needs_token` now clear on all
+26 enabled sources. Corpus **436 → 618 raw items**, 398 → 561 events, **315 unenriched** (was 152).
+
+- **Six of the seven previously-dark GitHub sources now fetch.** `New repos topic:llm` 15/13/13
+  (fetched/kept/new) · `topic:rag` 15/13/13 · `Star velocity topic:llm` 14/14/14 ·
+  `topic:agents` 12/12/12 · `Advisories — fastapi` 2 fetched, 0 in the 7-day window ·
+  `Advisories — langchain` 15 fetched, 0 in window.
+- **One is still dark with the token live:** `Breaking changes — langchain-ai/langchain` fetched
+  **0 items**. The token was never its problem. It is now a `no-items` fault, not a `no-token` skip.
+- **`consecutive_zero_yield` rose 1 → 2** on nine sources (the three above plus Eugene Yan,
+  VentureBeat AI, and the FastAPI / LlamaIndex / Qdrant / Vite release feeds); **reset to 0** on
+  the four topic sources that now yield.
+
+### The number the spend turns on (D-081)
+
+| population | items | unambiguous hits | rate |
+|---|---:|---:|---:|
+| pre-fetch baseline (reproduced exactly) | 436 | 29 | **6.7%** |
+| **the four GitHub sources that delivered** | 52 | 4 | **7.7%** |
+| **all 182 newly fetched items** | 182 | 10 | **5.5%** |
+| whole corpus now | 618 | 39 | 6.3% |
+
+**ADR 0002's premise — that curated GitHub intelligence is high-precision — is not supported at
+4-of-52.** The new items as a whole came in *below* the baseline because arXiv contributed **75 of
+182 (41%) at zero hits**. Honest caveat, stated not buried: GitHub items carry ~120 characters of
+text against arXiv's ~1,480 and RSS's ~890, so 7.7% is a **floor** for a string-matching
+instrument, not a point estimate. **Recommendation: do not spend the $1.44 on the GitHub items to
+settle this — run task 018 first.** The binding constraint looks like source scope, exactly as
+task 018 predicted, and enriching 315 items at ~6% precision buys a more expensive version of the
+same corpus. That is a recommendation, not a decision; the gate is Christo's.
+
+### Two source findings that are task 018's most concrete inputs (D-082)
+
+- **VentureBeat AI — the registry's only 100%-precision source (5/5) has been dead for three
+  months.** `category/ai/feed/` returns HTTP 200 and 7 entries whose newest is **2026-05-19**.
+  The publisher is fine: `venturebeat.com/feed/` served entries dated **today**. The category
+  feed stopped carrying the live stream.
+- **Eugene Yan is not broken, he is mis-cadenced.** A 212-entry full archive back to 2015 is
+  re-parsed every run; newest entry 2026-06-21. He posts every 4–8 weeks against a
+  `SOURCE_MAX_AGE_DAYS=7` window, so he is structurally zero-yield except in the week he posts.
+- **The defect underneath both:** `stale-window` is inferred from "fetched > 0, kept 0" alone, so
+  it describes a dead feed and a slow publisher with the same reassuring sentence — and D-040
+  classifies it as *not a fault*, so neither surfaces. The distinguishing fact is free at fetch
+  time: **the age of the newest entry.**
+
+### Environment — verified, and two traps found (D-083)
+
+`EMBEDDER=sentence-transformers` (**not** `hashing` — the corruption STOP condition is clear) ·
+`SOURCE_MAX_AGE_DAYS=7` · `DATABASE_URL=sqlite:///./data/dev_corpus.db` · `GITHUB_TOKEN` set ·
+python **3.14.6** (the handover said 3.14.2). Qdrant `items`: 384-dim cosine, 436 points before
+the run — matching SQLite exactly.
+
+1. **`docker compose ps` from the repo root returns NOTHING.** The live stack is
+   `docker compose -f docker-compose.m75.yml -p m75broad ps`. The bare command is not a valid
+   liveness check here and reads as "everything is down".
+2. **`QDRANT_URL` is correctly set to `:6335`, but `config.py:201` defaults to `:6333` — which
+   another project's Qdrant is serving right now.** Unset the env var and this repo reads and
+   writes a stranger's vector store, returning 200 throughout. Same shape as D-006. Not fixed;
+   no task calls for it.
+
+### Doc bugs — both closed (D-084)
+
+`backend/README.md`'s command block now opens with the repo-root/venv warning and why (D-006 cost
+~15 enrichments). `docs/m7.5-broad-notes.md` **already had it** — that half of the instruction was
+stale. `get_embedder()`'s docstring claimed a fallback the code does not implement; docstrings
+fixed, **code deliberately untouched** — the hashing embedder is 256-dim against the model's
+384-dim, so the "missing" fallback would corrupt the collection.
+
+### Next steps, in order
+
+1. **Christo:** rule on the $1.44 (STEP 4). The recommendation above is *not yet* — task 018 first.
+2. **Christo:** rule on ADR 0002 in light of 4-of-52 (D-081).
+3. **Christo:** `docs/inbox-digests/` — commit or ignore.
+4. **Christo:** `backend/data/ai_verkenner.db` (147KB, 22 June) — D-006 reserved deleting it to
+   him and it has been pending eight weeks. Still there, still untouched.
+5. **Then:** task 018 is now un-gated — its precondition ("one full run with all sources live")
+   is met by this run, and D-081/D-082 are its inputs.
+6. **Still open from task 017:** D-076's quadrant ruling. Unchanged by this session.
+
+**If the spend IS approved**, the preconditions are already proven: the startup log emits
+`INFO app.core.config: user_context source in force: …/docs/USER_CONTEXT.md (2331 chars)` —
+verified this session, the real document, not the stub. Snapshot the DB first
+(`cp data/dev_corpus.db data/dev_corpus.$(date +%F).pre-enrich.db`), then
+`enrich --backfill --dry-run`, then `--limit 40`, then **halt and report**.
+
+---
+
+<details>
+<summary>Superseded status line from the task 017 session (2026-08-14)</summary>
+
 ## STATUS: GO — **Task 017 done and at the review gate** (2026-08-14); tasks 014, 015 (reverted) and 016 also at the gate on the four separation commits on `feat/m7.5-broad-run`. Suite with task 017: **247 passed / 1 skipped / 0 failed**, against a baseline re-verified today at `320ab8a` of **238 / 1 skipped** — re-run before citing. **One ruling is needed from Christo** (D-076, quadrant gate). See *Task 017* and *Commit separation* at the bottom; this line supersedes the earlier "five commits / 229 passed" claim.
+
+</details>
 
 <!-- GO = safe to start new work. NO-GO = fix the stated blocker first. -->
 
