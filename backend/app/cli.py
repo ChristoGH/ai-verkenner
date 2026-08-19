@@ -25,7 +25,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.core.config import settings
+from app.core.config import log_user_context_source, settings
 from app.db import qdrant
 from app.db.neo4j import get_driver
 from app.db.sqlite import get_session, init_db
@@ -272,6 +272,9 @@ def _cmd_posts(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    # Name the user_context source in force, once, now that logging is configured (task 017 /
+    # D-069). Every enrichment call bills against whatever this is; it must never be a guess.
+    log_user_context_source()
     parser = argparse.ArgumentParser(prog="app.cli", description="AI Verkenner store/enrich/graph")
     sub = parser.add_subparsers(dest="command", required=True)
     run_parser = sub.add_parser("run", help="ingest + persist + embed + dedup + enrich + project")

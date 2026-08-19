@@ -122,10 +122,14 @@ a deliberate decision (it resolves an earlier ambiguity):
   obvious, and keeps them reusable by future components (e.g. a separate job runner) without a
   backend dependency.
 - **How the backend resolves them.** Paths are **configurable**, never hard-coded. `core/config`
-  reads `PROMPTS_DIR` (default `prompts`) and `SOURCES_FILE` (default `sources/sources.yaml`)
-  from the environment and resolves them against the repository root (the parent of `backend/`).
-  This means the backend has no embedded assumption about the directory layout — change the env
-  var and the content can live anywhere, including a mounted volume in a future container setup.
+  reads `PROMPTS_DIR` (default `prompts`), `SOURCES_FILE` (default `sources/sources.yaml`),
+  `ENTITY_ALIASES_FILE` (default `sources/entity_aliases.yaml`, task 014) and `USER_CONTEXT_PATH`
+  (default `docs/USER_CONTEXT.md`, task 017) from the environment and resolves them against the
+  repository root (the parent of `backend/`) through **one** helper, `_resolve`. This means the
+  backend has no embedded assumption about the directory layout — change the env var and the
+  content can live anywhere, including a mounted volume in a future container setup. There is
+  deliberately **one** resolution convention: a second one is how a document and the runtime drift
+  apart without anyone noticing, which is exactly what D-069 found.
 
 ## Phase 1 architecture (committed — graph / vector / visual)
 
@@ -185,6 +189,25 @@ enrichment, the M3 local embedder reused. **Fail-safe per item:** a missing/fail
 degrades to a deterministic rule-based fallback (`method="fallback"`), so a run never stalls.
 **Idempotent:** one `EnrichedItem` per Event (UNIQUE) means re-runs don't re-enrich or duplicate
 entities/relationships. Entity resolution is Phase-1 **exact + normalised string match** only.
+
+**`user_context` — what `relevance` is scored *against* (task 017).** `relevance` asks "is this
+about *this* user's work", so the answer is bounded by the description of that work supplied on
+every call. `core/config` resolves it in an explicit precedence: an explicit `USER_CONTEXT` env
+value (a per-run experiment override) → the file at `USER_CONTEXT_PATH`, default
+`docs/USER_CONTEXT.md` → a built-in 309-character literal. **No fall-back is silent:** a configured
+file that is unreadable or empty logs a WARNING at resolution time (which reaches stderr even
+before `basicConfig` runs), and `log_user_context_source()` names the source in force once at
+startup from `app.cli.main` and the API lifespan. This is not defensive decoration — until task 017
+the document that calls itself *"the ground truth AI Verkenner uses to score `relevance`"* was
+referenced in no Python file, the literal was silently in force, and three billable calibration
+runs ($4.77) tuned prompt wording against it (D-062, D-069; addendum §7).
+
+`settings.user_context` is read by **three** surfaces, not one: the enrichment classify call
+(`enrichment/enricher.py` → `prompts.render_item_inputs`), the digest **composition** call
+(`digests/generator.py` → `render.render_llm_inputs`), and the digest **retrieval** step
+(`digests/retrieve.py:build_theme_text`, which embeds it as the Qdrant theme query). Wiring it at
+settings level therefore also changes which items a digest retrieves and how it is written, not
+only how items are scored — a consequence recorded rather than absorbed (D-074).
 
 **M5 graph write & graph-aware ranking (current).** After enrichment, the run path projects the new,
 enriched Events into Neo4j (`project_new_events`). The graph schema is PHASE_1_PLAN §3: `Item`,

@@ -3,6 +3,78 @@
 Notable changes per task/milestone. Newest first. History lives in git; this file records *what
 changed and why it mattered*, at the granularity of a task file.
 
+## Task 017 — Wire `docs/USER_CONTEXT.md` into the runtime (2026-08-14)
+
+**`relevance` is now scored against Christo's actual work, not a 309-character stub.** Authorised by
+[D-069]. The document that opens by calling itself *"the ground truth AI Verkenner uses to score
+`relevance`"* was referenced in **no Python file**; `USER_CONTEXT` was unset, so `config.py` fell
+through to a literal naming no vendor and no open decision. Every `relevance` score this project
+ever measured — [D-018]'s corpus baseline included — was computed against it, and $4.77 of prompt
+calibration was spent tuning wording against a context that could not support the answer ([D-062]).
+
+### Changed
+
+- **`backend/app/core/config.py`** — new `USER_CONTEXT_PATH` (default `docs/USER_CONTEXT.md`),
+  resolved through the **same** `_resolve()` base-path mechanism as `PROMPTS_DIR`, `SOURCES_FILE`
+  and `ENTITY_ALIASES_FILE`. No second path convention was introduced, and
+  `test_user_context_path_uses_existing_base_path_convention` pins that. Precedence is explicit:
+  an explicit `USER_CONTEXT` env value (a per-run experiment override) → the file → the literal.
+- **No fall-back is silent** ([D-073], addendum §7). An unreadable or empty configured file logs a
+  **WARNING at resolution time** — WARNING specifically, because `app.cli` imports settings at module
+  level and calls `basicConfig` inside `main()`, so an INFO record emitted there would be discarded
+  and the announcement would be theatre. `log_user_context_source()` names the source in force once
+  at startup, from `app.cli.main` and the API lifespan.
+- **`backend/app/cli.py` · `backend/app/main.py` · `.env.example`** — the announcement call and the
+  documented precedence. **No prompt wording changed:** `prompts/classify_item.md` and
+  `enrichment/fallback.py` are byte-identical to their Task 012 attempt-2 state.
+
+### Measured — one 45-item sample, prompts held constant ($1.81 of a ~$2.00 gate)
+
+Same 45 items as all three prior runs, **identity verified element-by-element before spending**.
+The run's own output records the 2,331-character context it sent, containing `pgvector`, `Qdrant`,
+`Knative`, `tree-sitter` and `Agent SDK` — proof of input, not a claim about it.
+
+| Measure | Attempt 2 | **Task 017** | Gate | |
+|---|---|---|---|---|
+| `relevance >= 4` | 0 | **1** | >= 1 | ✅ **MET** |
+| quadrant (`rel<=2 & sp>=4`) | 2 | **0** | >= 1 | ❌ **LOST** |
+| `sp >= rel + 2` | 4 | **3** | >= 3 | ✅ at the line |
+| `r(rel, sp)` *(diagnostic)* | 0.693 | **0.567** | not gated | fell |
+
+**The prediction held.** ev1 — *Anthropic "pauses" token-based billing for its Claude Agent SDK* —
+went `rel 2 → 4`, the only item in the sample to reach 4, and exactly the item named before the run:
+`USER_CONTEXT.md` lists *"Claude / Anthropic model + Agent SDK releases"* verbatim as a strong
+signal. ev38 (Claude) rose `2 → 3`. **Caveat measured before the run:** only 2 of 45 items match the
+predicted categories at all — zero pgvector/Qdrant, zero tree-sitter, zero Knative — so three of the
+prediction's four limbs were untestable here.
+
+**No inflation.** Relevance mean moved **+0.02** (6 up, 6 down, 33 unchanged — a redistribution, not
+a lift). Hype inversion verified unchanged (Gartner advertorial 5, Willison primary 1). Cost
++931 input tokens/call, **+$0.0042/item (+11.5%)**, +$0.42 per 100 items.
+
+**⚠️ The quadrant loss is not what it looks like ([D-076]).** It did not empty because `relevance`
+rose — it emptied because **`strategic_potential`'s ceiling fell 4 → 3** and no item reached `sp >= 4`.
+ev180 held `rel 2` exactly and lost `sp 4 → 3`. That is an axis which by design does **not** read
+`user_context`, on a population of **2 items**, where [D-056] already recorded ±1 movement on
+identical input. One run cannot separate variance from contamination; **it was reported, not tuned
+around, and not iterated** — the stop condition held.
+
+### Tests
+
+`backend/tests/test_user_context.py` — the four named in the task file
+(`test_user_context_loads_from_file` · `test_explicit_env_overrides_file` ·
+`test_missing_file_falls_back_and_logs`, which asserts the **log record** rather than only the value
+· `test_user_context_path_uses_existing_base_path_convention`) plus five more, including a guard
+that the shipped `settings` singleton is not the stub — an assertion that would have failed before
+this task. Suite **247 passed / 1 skipped / 0 failed** against a baseline **re-verified today at
+`320ab8a`: 238 / 1 skipped** ([D-022]).
+
+### Not in this change
+
+No prompt wording, no new axes, no renaming, no change to the hype inversion, `priority.py`
+untouched (D-014), no edit to `docs/USER_CONTEXT.md`, and **no full-corpus re-enrichment**.
+Two gaps found in the document itself are reported, not fixed ([D-077]).
+
 ## Task 016 — Mention weight: a passing reference is not participation (2026-08-04)
 
 **An item counts toward a driver's cluster only if the driver is substantively present in it.**

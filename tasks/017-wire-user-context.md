@@ -1,7 +1,16 @@
 # Task 017 — Wire `docs/USER_CONTEXT.md` into the runtime
 
-**Status: NOT STARTED** — raised by Task 015's revert ([D-062](../docs/DECISIONS.md)),
-authorised by [D-069](../docs/DECISIONS.md).
+**Status: DONE, AT THE REVIEW GATE** (2026-08-14) — raised by Task 015's revert
+([D-062](../docs/DECISIONS.md)), authorised by [D-069](../docs/DECISIONS.md).
+Results in [D-075](../docs/DECISIONS.md), [D-076](../docs/DECISIONS.md),
+[D-077](../docs/DECISIONS.md) and `docs/m8-calibration-notes.md` § Task 017.
+
+> **Outcome in one line:** the wiring is done and proven at runtime; **`relevance >= 4` is reachable
+> and was reached by exactly the predicted item** (ev1, the Claude Agent SDK billing story), so
+> Task 015's premise is dead. **But Task 012's quadrant gate was lost on the same run** — because
+> `strategic_potential`'s ceiling fell on a 2-item base, not because relevance rose (D-076). One run
+> cannot separate that from documented ±1 variance, and the stop condition forbade a second.
+> **The next move is Christo's and it is not another prompt edit.**
 
 > **Run this BEFORE the fresh ingest.** Every enrichment call bills against whatever `user_context`
 > is in force. Ingesting ~100 new items first means paying to score them against a placeholder and

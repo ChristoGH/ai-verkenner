@@ -521,3 +521,191 @@ one, and it should carry the fix for edit 3's asymmetry (illustrate `strategic_p
 genuinely a 3 and the fixture is wrong, or the `4`/`5` anchors do not reach the
 "capability-under-a-permissive-licence" case. That is worth settling before it is cited again as a
 target.
+
+---
+
+## Task 017 — `docs/USER_CONTEXT.md` wired in; prompts held constant
+
+**One run, as authorised. Not iterated.** Raw output: `docs/m8-calibration-task017.json`.
+The same 45 items, the same seed and model, and `prompts/classify_item.md` +
+`enrichment/fallback.py` **byte-identical to their committed Task 012 attempt-2 state** (verified
+`git status` clean on both before spending). The only variable moved is the `user_context` supplied
+on each call. Corpus opened read-only; nothing written back.
+
+### 1. Sample identity — verified BEFORE spending
+
+The 45 `event_id`s were compared element-by-element against all three prior runs
+(`m8-calibration.json`, `-attempt2.json`, `-task015.json`). **Exact match, in order, on all three.**
+A comparison against a different sample costs the same and is worth nothing, so this was a gate, not
+a formality.
+
+### 2. Proof of input — what was actually sent
+
+The report records the context verbatim (`measure_calibration.py` writes `settings.user_context`
+into its output). Recorded: **2,331 characters**, first line `# USER_CONTEXT — who this radar is
+for`, and containing `pgvector` · `Qdrant` · `Knative` · `tree-sitter` · `Agent SDK` · `Cursor` ·
+`spaCy`. The stub is 309 characters and contains none of them. This is the check addendum §7 exists
+to demand, and it is now in the run's own output rather than in a claim about it.
+
+`docs/USER_CONTEXT.md` is **41 lines / 2,373 bytes / 2,332 characters** (the byte-character gap is
+the multi-byte `—` and `·`); 2,331 after `.strip()`. **Nothing was trimmed and no boundary is
+proposed** — at that size there is nothing to cut, and Task 017's scope item 3 is discharged by the
+measurement rather than by an editorial judgement.
+
+### 3. The prediction — CONFIRMED on the only limb this sample could test
+
+**Stated before the run, with its own caveat measured first.** Of the 45 items, only **2** match the
+predicted categories by title: ev1 and ev38, both Claude/Anthropic. **Zero** match
+pgvector/Qdrant/Lakebase, **zero** tree-sitter, **zero** Knative/AKS/Cloud Run. (An apparent AKS hit
+was `bre-AKS` inside "where the measurement breaks".) So three of the prediction's four limbs were
+**untestable on this sample** — that is a fact about the sample, not a result.
+
+| item | attempt 2 | task 017 | predicted? |
+|---|---|---|---|
+| ev1 — *Anthropic "pauses" token-based billing for its Claude Agent SDK* | `rel 2` | **`rel 4`** | ✅ rise |
+| ev38 — *How I tricked Claude into leaking your deepest, darkest secrets* | `rel 2` | **`rel 3`** | ✅ rise |
+
+**ev1 is the only item in the whole sample to reach `relevance 4`** — the criterion Task 015 could
+not meet — and it is precisely the item predicted, for precisely the stated reason:
+`docs/USER_CONTEXT.md` lists *"Claude / Anthropic model + Agent SDK releases"* verbatim under
+**strong relevance signals (elevate)**, and two shipped projects (Commission Intelligence, MedVoice)
+depend on the Claude SDK. D-062's diagnosis is confirmed by construction: the anchors were never the
+binding constraint.
+
+### 4. Results against every criterion
+
+| Measure | Attempt 2 | **Task 017** | Gate | |
+|---|---|---|---|---|
+| `relevance >= 4` | 0 | **1** (ev1) | >= 1 | ✅ **MET** |
+| quadrant occupancy (`rel<=2 & sp>=4`) | 2 | **0** | >= 1 | ❌ **LOST** |
+| `sp >= rel + 2` count | 4 | **3** | >= 3 | ✅ holds, at the line |
+| `actionability >= 4` | 0 | **0** | informational | — |
+| `horizon_signal` items | 2 | **0** | — | follows the quadrant |
+| `r(rel, sp)` *(diagnostic, D-057)* | 0.693 | **0.567** | not gated | fell |
+
+`r` **fell** rather than rose. That was not predicted — the expectation was a rise — and it is
+reported as the diagnostic D-057 made it, not claimed as a win.
+
+### 5. ⚠️ The quadrant loss — what actually caused it
+
+**The quadrant did not empty because `relevance` rose. It emptied because `strategic_potential`'s
+ceiling fell.** Not one of the 45 items reached `sp >= 4`; the axis maximum went **4 → 3**.
+
+| | attempt 2 | task 017 |
+|---|---|---|
+| items at `sp >= 4` | **2** (ev38, ev180) | **0** |
+| `sp` distribution | `{0:11, 1:6, 2:14, 3:12, 4:2}` | `{0:9, 1:6, 2:19, 3:11}` |
+| `sp` mean | 1.733 | 1.711 |
+
+Both former quadrant items are accounted for individually: **ev180** (*Frontier LLMs couldn't help
+Hugging Face fight off evil agents*) kept `rel 2` exactly and lost `sp 4 → 3`; **ev38** lost
+`sp 4 → 3` as well. Neither left on a relevance rise alone.
+
+**This matters because `strategic_potential` is the axis that, by design, does not read
+`user_context`.** Task 012 attempt 2 framed it on the problem space specifically so it would not
+restate `relevance`, and `test_strategic_potential_is_framed_on_the_problem_space_not_the_stack`
+pins that. Two readings, and **one run cannot separate them**:
+
+1. **Run-to-run variance.** The `sp >= 4` population was **2 of 45**. D-056 already recorded ev179
+   moving `sp 4 → 3` between runs *on identical input*. A 2-item ceiling losing both items is well
+   inside that documented ±1 noise.
+2. **Contamination.** A longer, more concrete context could implicitly anchor the whole scoring pass
+   downward on an axis meant to ignore it.
+
+The honest statement is that **the quadrant gate is lost on this run, on a 2-item base, and the
+cause is not separable from noise without a second run** — which the stop condition forbids and
+which this session did not take. The mean barely moved (1.733 → 1.711), which is what argues for
+reading (1); the ceiling moving at all is what keeps (2) open.
+
+### 6. No inflation — per-axis means, before and after
+
+| axis | stored | attempt 2 | **task 017** | Δ vs attempt 2 |
+|---|---|---|---|---|
+| relevance | 1.53 | 1.33 | **1.36** | **+0.02** |
+| novelty | 2.42 | 1.87 | **1.93** | +0.07 |
+| actionability | 1.02 | 1.00 | **0.96** | −0.04 |
+| strategic_potential | 1.96 | 1.73 | **1.71** | −0.02 |
+| hype *(inverted)* | 1.93 | 1.80 | **1.67** | −0.13 |
+
+**Relevance moved by +0.02 on the mean: 6 items rose, 6 fell, 33 unchanged.** Wiring a richer
+context **redistributed** relevance rather than lifting it — which is the correct signature. A
+context that made everything more relevant would have been the failure mode to fear.
+
+**Hype inversion verified unchanged** (0 = signal, 5 = noise): the Gartner advertorial (ev70) scored
+**5** in both runs, Simon Willison's primary post (ev30) scored **1** in both. 0 items failed.
+
+### 7. Hand spot-check — 10 items, MISSES NAMED
+
+Every item that moved on `relevance` was read against its own text and against
+`docs/USER_CONTEXT.md`. Six rose, six fell; all twelve are below, so this is the whole population of
+movement, not a flattering selection.
+
+**Correct (6):**
+
+- **ev1** `rel 2→4` — Claude Agent SDK billing. Named verbatim in the strong-signal list; two
+  shipped projects depend on that SDK. `sp` correctly stayed **1** — a pricing change is not a
+  strategic shift, and the two axes moving independently here is the Task 012 decoupling working.
+- **ev38** `rel 2→3` — Claude memory exfiltration. Security of a stack component.
+- **ev161** `rel 1→2` — agent harness for multimodal pipelines. "agentic frameworks" is a named signal.
+- **ev40** `rel 2→1` — OpenAI's GPT-Red. OpenAI is not this user's model vendor; `hype` also rose
+  2→3, right for vendor safety-PR.
+- **ev88** `rel 2→1` — email spam-filter salting. No stack contact.
+- **ev134** `rel 2→1` — football-prediction benchmark. No stack contact.
+
+**ev152** `rel 2→3` — *LLMs and Agentic AI Systems for Smart Grids* — looks wrong until you check
+the document: **SmartSolar** (Sunsynk inverter / home-energy optimisation) is listed under active
+work. The rise is defensible and is evidence the context is being read rather than pattern-matched.
+
+**Misses (5) — named, not smoothed:**
+
+- **ev228** `rel 3→2` — *memloom: local-first memory engine for AI agents*, from `topic:rag`. **The
+  clearest miss.** "RAG techniques" is a named strong signal and agent memory is directly relevant to
+  AI Verkenner and Commission Intelligence. This was the only item scored `rel 4` in the stored
+  corpus and it fell to 2. (Its `hype 3→1` is more accurate, so the item did not simply sink.)
+- **ev179** `rel 3→2`, `act 3→2` — *Nativ: run frontier open models locally on your Mac*. The
+  document names embeddings (Voyage, sentence-transformers, OpenAI) but **not local LLM inference**,
+  so the demotion is literal to the text. That reads as an **under-specified document**, not a
+  wiring defect — a candidate line for Christo to add.
+- **ev17** `rel 0→1` — health-board phishing exercise. **A control violation:** this was one of the
+  no-stack-contact items predicted not to rise. The likely pull is *"MedVoice … healthcare
+  compliance"*. Still bottom-of-scale, so nothing published depends on it.
+- **ev49** `rel 0→1` — DeepMind/Isomorphic bioresilience. Nothing in the document touches bio.
+  `hype 4` correctly marks it noisy.
+- **ev81** `rel 2→1` — Simon Willison's LLM cliché highlighter. Arguable: the stub's "AI developer
+  tooling" caught it, the real document's signal list does not. A hands-on tool from a primary source
+  is plausibly something this radar should keep.
+
+The three other controls held: ev246 (Mars) `0→0`, ev70 (Gartner) `0→0`, ev113 (UK ERP audit)
+`0→0`, ev93 (wildfire satellites) `0→0`.
+
+### 8. Cost — real API figures, under the gate
+
+| | attempt 2 | **task 017** |
+|---|---|---|
+| input tokens / call | 4,166 | **5,097** |
+| total tokens | 187,461 in / 27,297 out | **229,356 in / 26,392 out** |
+| cost / item | $0.0360 | **$0.0402** |
+| run total (45 items) | $1.6197 | **$1.8066** |
+
+**+931 input tokens per call** — the real measured figure, against a ~575-token pre-run estimate;
+markdown structure costs more per character than prose. **+$0.0042 per item (+11.5%)**, **+$0.42 per
+100 items**. **$1.81 against a ~$2.00 gate — under, so no overrun entry is owed** (the D-055 / D-063
+precedent applies to overruns; the figure is recorded here either way). 0 failed items.
+Running total on this prompt file across four runs: **$6.58**. Full-corpus re-enrichment remains
+**unauthorised and not run**; at this context size it would be ≈ $11 through the classify prompt
+alone.
+
+### 9. What this leaves
+
+- **The wiring is done and proven at runtime**, not merely in tests: the source in force is named in
+  the run's own output and by a startup log line.
+- **`relevance >= 4` is reachable** and was reached by exactly the predicted item. **Task 015's
+  premise is dead** — it proposed rewriting anchors that were never the constraint. Re-read it against
+  this before running anything; D-062 already says not to run it as written.
+- **Task 012's quadrant gate is lost on this run** and the cause is not separable from documented
+  ±1 variance on a 2-item base. **This is the open question, and it is Christo's** — not another
+  prompt edit. If it is worth settling, the cheapest instrument is a **repeat of this exact run with
+  no changes at all** (~$1.81), which measures variance directly; a second *prompt* change would
+  confound it again, which is the mistake this whole sequence exists to avoid.
+- **Two document gaps found, not fixed** (its accuracy is Christo's — the file says so): local LLM
+  inference is absent (ev179), and healthcare compliance pulls non-AI healthcare items (ev17).
