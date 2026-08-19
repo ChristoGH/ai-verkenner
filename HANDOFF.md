@@ -3,7 +3,7 @@
 > Volatile state. Overwritten at the end of every session; history lives in git.
 > Read this FIRST at the start of every session (see CLAUDE.md session protocol).
 
-## STATUS: GO — commit separation DONE (five commits on `feat/m7.5-broad-run`); **Task 014 implemented and at the review gate**. Suite as last run: **229 passed / 1 skipped / 0 failed** — re-run before citing.
+## STATUS: GO — **Task 017 done and at the review gate** (2026-08-14); tasks 014, 015 (reverted) and 016 also at the gate on the four separation commits on `feat/m7.5-broad-run`. Suite with task 017: **247 passed / 1 skipped / 0 failed**, against a baseline re-verified today at `320ab8a` of **238 / 1 skipped** — re-run before citing. **One ruling is needed from Christo** (D-076, quadrant gate). See *Task 017* and *Commit separation* at the bottom; this line supersedes the earlier "five commits / 229 passed" claim.
 
 <!-- GO = safe to start new work. NO-GO = fix the stated blocker first. -->
 
@@ -669,3 +669,203 @@ Task 014's and were **not opened** here. **Task 014's alias normalisation is liv
 in Neo4j** (the graph was already re-indexed), so combined-tree numbers differ from the isolated
 ones above — the driver, the exclusions and the published count are the same either way; only the
 shared-driver group count moves (20 combined vs 22 isolated). **Separate these before committing.**
+
+---
+
+## Commit separation — DONE, four commits (2026-08-14)
+
+**Appended, not overwritten** (D-042): every prior session's section above this line is untouched.
+This session did **separation only** — no code was fixed, refactored, reformatted or improved, and
+nothing was moved between commits to make a suite green.
+
+`bac590c` (19 modified + 8 untracked, three tasks interleaved) → four ordered commits:
+
+| # | SHA | message | suite on that commit |
+|---|---|---|---|
+| — | `bac590c` | *(baseline, re-verified in a clean worktree)* | **218 / 1 skipped** |
+| 1 | `f07f25d` | `feat(graph): entity normalisation — one concept, one uid (task 014)` | **226 / 1 skipped** |
+| 2 | `ae3e3c0` | `docs(calibration): task 015 run, reverted — USER_CONTEXT is the binding constraint (D-062)` | **226 / 1 skipped** |
+| 3 | `0bf57b6` | `feat(digests): mention weight — a passing reference is not participation (task 016)` | **238 / 1 skipped** |
+| 4 | `320ab8a` | `docs: addendum §7 (verify experiment inputs), D-069, task 017` | **238 / 1 skipped** |
+
+Every number above was **re-run this session** (D-022, addendum §4), each in its own detached
+`git worktree` at that commit — not in place. In-place runs would have returned 238 four times,
+because index-only staging never changes the working tree (D-071).
+
+**No intermediate commit was RED.** Tasks 014 and 016 are genuinely independent: neither needs the
+other's code to pass. Commit 2 is correctly flat at 226 — task 015 shipped no code, only its record.
+
+### Reconciliation — nothing lost, nothing added
+
+- `git diff bac590c..HEAD` over the **19 modified** files: **+964 −47**, byte-identical to the
+  pre-separation diffstat.
+- Plus **7 new files**, +2281 (`aliases.py` 158 · `mention_weight.py` 129 ·
+  `test_entity_aliases.py` 206 · `test_mention_weight.py` 454 · `m8-calibration-task015.json` 1073 ·
+  `entity_aliases.yaml` 77 · `017-wire-user-context.md` 184).
+- `git diff HEAD` was **empty** at commit 4 — the tree matched HEAD exactly.
+
+### Three numbers this corrects
+
+The combined tree is **238 / 1 skipped**, not the **229** the old status line carried nor the
+**230** the task 016 session measured for its work in isolation. Both earlier figures were taken
+mid-flight while other sessions were writing to this shared tree; neither was wrong when written.
+The **218** baseline at `bac590c` re-verified exactly as recorded.
+
+### Left uncommitted, deliberately
+
+- **`docs/inbox-digests/`** — 3 untracked files, 52 KB (`2026-08-05-inbox-scan.md`,
+  `2026-08-10-inbox-scan.md`, `README.md`), email-scan output belonging to **no task file**. Not in
+  `.gitignore`. **Christo's call:** repo content, or `.gitignore`. Untouched by this session.
+- **`HANDOFF.md` + `docs/DECISIONS.md`** (this section, and D-070…D-072) — written after commit 4,
+  so they belong to no authorised commit. Left for the review gate rather than amending a reported
+  SHA or adding a fifth commit (D-072).
+
+### Found and NOT fixed, as instructed
+
+1. **`HANDOFF.md`'s own status line was false** — it claimed "commit separation DONE (five commits)"
+   *before any separation had happened*, and cited a suite number from a tree that no longer existed.
+   Corrected in place (that is this session's own state to keep true, addendum §6), and the
+   correction is stated rather than silently applied.
+2. **`git status` was clean of task 015 code** — `prompts/classify_item.md` and
+   `backend/app/enrichment/fallback.py` both unmodified, confirming D-062's revert really happened.
+   The stop condition on finding live 015 anchors **did not fire**.
+3. **`backend/app/scoring/priority.py` is absent from the whole diff.** D-014 intact.
+4. **One assignment worth naming: `HANDOFF.md` carries task 014, 015 and 016 sections** but was
+   committed whole in commit 4. By content those three sections belong to commits 1, 2 and 3. The
+   plan assigned the file whole and this session followed it — defensible, since HANDOFF is volatile
+   session state rather than a task deliverable, but it does mean **commits 1–3 do not carry their
+   own HANDOFF narrative**. Flagged, not changed.
+
+### Next steps (unchanged by this session, re-stated)
+
+The separation blocker in *Next steps* above is now **cleared**. In the order that section sets:
+**Task 017** (wire `USER_CONTEXT`) must land **before** the fresh ingest (D-069), then the fresh
+ingest, then the publication decision. Task 015 should be re-read against Task 017's result before
+anything is re-run.
+
+---
+
+## Task 017 — wire `docs/USER_CONTEXT.md` into the runtime (2026-08-14, at the review gate)
+
+**Appended, not overwritten** (D-042). Every section above is untouched. **Do not self-merge.**
+Decisions **D-073…D-077** (highest before this session: **D-072**, not the D-069 the task prompt
+cited — D-070…D-072 were written by the separation session and are uncommitted).
+
+### The wiring — done and proven at runtime, not just in tests
+
+`USER_CONTEXT_PATH` (default `docs/USER_CONTEXT.md`) resolved through the **same** `_resolve()`
+mechanism as `PROMPTS_DIR` / `SOURCES_FILE` / `ENTITY_ALIASES_FILE`. **No second path convention**
+— pinned by `test_user_context_path_uses_existing_base_path_convention`. Precedence: explicit
+`USER_CONTEXT` env → the file → the literal default.
+
+**Proof, not assertion:** `python -m app.cli sources --health` prints
+`INFO app.core.config: user_context source in force: …/docs/USER_CONTEXT.md (2331 chars)`, and the
+calibration run's own JSON records the 2,331-character context it sent.
+
+**No fall-back is silent (D-073).** An unreadable/empty configured file logs a **WARNING at
+resolution time** — WARNING because `app.cli` imports settings at module level (`cli.py:29`) but
+calls `basicConfig` inside `main()` (`cli.py:274`), so an INFO record emitted from `Settings.__init__`
+is **discarded**. Announcing from `Settings` would have been a log statement in the diff and nothing
+in the output. The steady-state line is emitted from the entry points instead.
+
+- **Files:** `backend/app/core/config.py` · `backend/app/cli.py` · `backend/app/main.py` ·
+  `.env.example` · **new** `backend/tests/test_user_context.py` (9 tests) · **new**
+  `docs/m8-calibration-task017.json` · `docs/m8-calibration-notes.md` (appended) · `CHANGELOG.md` ·
+  `docs/TECHNICAL_DESIGN.md` · `tasks/017-wire-user-context.md` · `docs/DECISIONS.md`.
+- **Untouched:** `prompts/classify_item.md` and `enrichment/fallback.py` byte-identical to Task 012
+  attempt 2 (verified clean before spending) · `priority.py` (D-014) · `docs/USER_CONTEXT.md`
+  content · no new axes, no renaming, no hype-inversion change · **no full-corpus re-enrichment**.
+
+### Scope item 3 discharged by measurement — nothing to trim
+
+`docs/USER_CONTEXT.md` is **41 lines / 2,373 bytes / 2,332 characters** (byte-char gap = multi-byte
+`—`/`·`); 2,331 after `.strip()`. **No trim boundary is proposed.** There is nothing to cut.
+
+### ⚠️ A THIRD consumer the task prompt did not name (D-074)
+
+`settings.user_context` is read by the enricher **and** the digest **composition** call **and** —
+unnamed anywhere until now — `digests/retrieve.py:57` `build_theme_text`, which **embeds** it as the
+Qdrant theme query selecting the digest's candidate pool. So wiring changes **which items a digest
+retrieves**, not only how they are scored or described. Unmeasured; nothing in the acceptance
+criteria depends on it. **Do not compare a post-017 digest with a pre-017 digest without re-measuring.**
+
+### The measurement — one run, $1.81 of a ~$2.00 gate, not iterated
+
+Same 45 items as all three prior runs, **identity verified element-by-element before spending**.
+Prompts constant. 0 failed items.
+
+| Measure | Attempt 2 | **Task 017** | Gate | |
+|---|---|---|---|---|
+| `relevance >= 4` | 0 | **1** | >= 1 | ✅ **MET** |
+| quadrant (`rel<=2 & sp>=4`) | 2 | **0** | >= 1 | ❌ **LOST** |
+| `sp >= rel + 2` | 4 | **3** | >= 3 | ✅ at the line |
+| `actionability >= 4` | 0 | **0** | informational | — |
+| `r(rel, sp)` *(diagnostic, D-057)* | 0.693 | **0.567** | not gated | fell (not predicted) |
+
+**The prediction held.** ev1 — *Anthropic "pauses" token-based billing for its Claude Agent SDK* —
+`rel 2 → 4`: the only item in the sample to reach 4, and **exactly the item named before the run**,
+because `USER_CONTEXT.md` lists *"Claude / Anthropic model + Agent SDK releases"* verbatim as a
+strong signal. ev38 (Claude) `2 → 3`. **D-062 is confirmed: the anchors were never the constraint,
+and Task 015's premise is dead.**
+
+**Caveat, measured before the run:** only **2 of 45** items match the predicted categories at all —
+**zero** pgvector/Qdrant, **zero** tree-sitter, **zero** Knative. Three of the prediction's four
+limbs were **untestable on this sample**. That is a fact about the sample, not a result.
+
+**No inflation:** relevance mean **+0.02** (6 up, 6 down, 33 unchanged — redistribution, not lift);
+hype inversion verified unchanged (Gartner 5, Willison 1). Cost **+931 input tokens/call,
++$0.0042/item (+11.5%), +$0.42 per 100 items**; four-run total on this prompt file **$6.58**.
+
+### ⚠️ THE ONE THING THAT NEEDS A RULING (D-076)
+
+**The quadrant did not empty because `relevance` rose. It emptied because `strategic_potential`'s
+ceiling fell 4 → 3 — no item in 45 reached `sp >= 4`.** ev180 held `rel 2` *exactly* and lost
+`sp 4 → 3`; ev38 likewise. `sp`'s **mean barely moved** (1.733 → 1.711); only the ceiling did.
+
+That axis, by design, **does not read `user_context`** — Task 012 attempt 2 re-framed it on the
+problem space precisely so it would not restate `relevance`, and a test pins that. Two readings:
+**(1) variance** — the `sp >= 4` population was **2 of 45**, and D-056 already recorded ev179 moving
+`sp 4 → 3` between runs *on identical input*; **(2) contamination** — a longer context implicitly
+anchoring a pass on an axis meant to ignore it. **One run cannot separate them and the stop
+condition forbade a second.** Nothing was tuned to recover the gate.
+
+**Recommendation:** if this is worth settling, the cheapest instrument is a **repeat of this exact
+run with nothing changed (~$1.81)**, which measures variance directly. A further *prompt* change
+would confound the two again — the precise mistake this whole sequence exists to avoid. There is
+also a real possibility the gate is simply **under-powered**: a criterion whose satisfying population
+is 2 items wide on a 45-item sample may not be a stable gate at all. **Christo's call.**
+
+### Two gaps in `docs/USER_CONTEXT.md` itself — reported, NOT edited (D-077)
+
+Its accuracy is Christo's; the file says so. Found by the hand spot-check:
+
+1. **Local LLM inference is absent.** ev179 (*Nativ: run frontier open models locally on your Mac*)
+   fell `rel 3 → 2`. The document names embeddings but never local model *inference*, so the
+   demotion is faithful to an under-specified text.
+2. **"healthcare compliance" pulls non-AI healthcare items.** ev17 (*health board phishing
+   exercise*) rose `rel 0 → 1` — a control item predicted not to move. Bottom-of-scale; nothing
+   published depends on it.
+3. **Not a document gap, and the most interesting miss:** ev228 (*memloom — local-first memory
+   engine for AI agents*, from `topic:rag`) fell `rel 3 → 2` although "RAG techniques" is a named
+   strong signal. The document covers it; the model did not act on it. This is the movement neither
+   the wiring nor the document explains, and the best argument for taking D-076's variance
+   hypothesis seriously.
+
+If Christo edits the document, do it **before** any re-measure and as a **single-variable** change.
+
+### Next steps — changed by this task
+
+1. **Ruling on D-076** (quadrant gate) — the only thing blocked on Christo.
+2. **Task 015 is superseded in premise.** Do not run it as written (D-062 already said so); its
+   anchors were never the constraint. Re-read it against this result before touching it.
+3. **The fresh ingest is now unblocked** — D-069's sequencing ("Task 017 must land BEFORE the fresh
+   ingest") is satisfied, so new items will be scored against the real context rather than a stub.
+4. Still open and untouched by this session: `SOURCE_MAX_AGE_DAYS` 7-vs-30 (D-048), Anthropic as an
+   uncovered frontier lab, topicality as its own task (D-068), D-013 orphaned backlog, no `--now`
+   flag (D-023), `docs/inbox-digests/` still untracked and unruled.
+
+### Uncommitted, for the gate
+
+Everything above is **uncommitted**, alongside the separation session's `HANDOFF.md` /
+`docs/DECISIONS.md` update (D-070…D-072) which was also left for review. `docs/inbox-digests/`
+remains untracked.

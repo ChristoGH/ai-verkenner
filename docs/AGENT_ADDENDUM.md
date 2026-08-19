@@ -62,6 +62,32 @@ task file, auditing a registry, measuring a distribution.
 When escalating, bring a recommendation and the evidence for it. An open-ended "what do you want to
 do?" pushes work back that the agent was better placed to resolve.
 
+### 3.1 Trip-wires — the rule above is not self-enforcing
+
+> **Failure it prevents:** this rule was written, agreed, and then broken in the very next session —
+> which ended by *offering* to run a measurement that cost nothing, needed no decision, and was
+> squarely in **Do now**. A principle that only fires when you remember it does not fire.
+
+Four mechanical checks. They are cheap, they run at the moment of writing, and any one of them
+tripping means the response is not finished:
+
+1. **The closing-offer test.** If a response ends by offering to do something, that offer is a
+   **Do now** item you did not do. Delete the offer and do the work. The only legitimate closing
+   offer is one whose subject is genuinely **Christo only**.
+2. **The permission test.** *"Want me to…"*, *"Shall I…"*, *"Should I…"* applied to analysis,
+   measurement, reading, drafting, or writing a handover prompt is a violation on its face. None of
+   those spend money, none are irreversible, none need taste. Do them and report the result.
+3. **The ledger test.** A response that hands over more items than it completed is presumptively a
+   violation. Not always wrong — but it must say why the balance fell that way.
+4. **State a default, don't ask a question.** Where something genuinely needs Christo's assent but
+   is reversible, do not ask — **name what you will do absent objection**: *"Unless you say
+   otherwise, I'll X."* That keeps the human review gate intact (he can still veto) without
+   handing back a decision he did not need to make. Reserve real questions for the irreversible:
+   spend, publication, merge.
+
+**Asking is not deference; it is unfinished work wearing good manners.** The review gate protects
+against bad *merges*, not against an agent doing analysis it was better placed to do.
+
 ## 4. Mark the epistemic status of everything
 
 Three states, always distinguishable in the output:
@@ -136,9 +162,16 @@ cheapest possible version of this rule would have saved all three runs.
 > held an fd on `.git/index.lock`" and flagged it as a recurring hazard — without being able to see
 > that the cause was another agent in the same conversation.
 
-A session working through a mount may **read** git freely — `log`, `status`, `diff`, `show` are all
-fine and often essential. It must not run anything that takes the index lock: `add`, `commit`,
+A session working through a mount may **read** git freely — `log`, `diff` and `show` are all fine
+and often essential. It must not run anything that takes the index lock: `add`, `commit`,
 `checkout`, `stash`, `rm`, `mv`, `merge`, `rebase`.
+
+> **`git status` is NOT a read.** This rule originally listed it as safe. It is not: `status`
+> refreshes the index and takes `.git/index.lock` to do so. A mounted session running `git status`
+> reproduces the exact incident this section exists to prevent — verified 2026-08-19, when a Cowork
+> session left a stale lock doing nothing but checking state. Anything `status` would tell you is
+> available from `git diff --stat`, `git diff --cached --stat` and `git ls-files --others
+> --exclude-standard`, none of which lock. **Use those.**
 
 Staging and committing belong to the session running natively on the host. A mounted session's
 contribution ends at **files written**; it hands over the commit message rather than the commit.
