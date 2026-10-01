@@ -32,6 +32,14 @@ embeddings = [
 llm = [
     "anthropic>=0.40",
 ]
+# Static convergence-cluster image for the M7.5 post drafts. Optional + lazily imported so tests/CI
+# stay light — without it the post generator writes a clearly-marked placeholder instead of a PNG.
+# Install to render the image:
+#   pip install -e ".[posts]"
+posts = [
+    "matplotlib>=3.8",
+    "networkx>=3.2",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

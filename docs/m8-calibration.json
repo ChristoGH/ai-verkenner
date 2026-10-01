@@ -1,0 +1,1074 @@
+{
+  "generated_at": "2026-08-04T10:32:17.651049+00:00",
+  "db": "data/dev_corpus.db",
+  "model": "claude-opus-4-8",
+  "seed": 12,
+  "strata": {
+    "4": 1,
+    "3": 11,
+    "2": 10,
+    "1": 12,
+    "0": 11
+  },
+  "sample_size": 45,
+  "failed_items": 0,
+  "user_context": "A solo engineer building AI Verkenner: a personal AI intelligence and early-warning system. Stack: Python, FastAPI, SQLite, Qdrant, Neo4j, React/TypeScript, local sentence-transformers embeddings, and a cloud LLM. Interests: LLM tooling, RAG, vector/graph databases, agentic systems, and AI developer tooling.",
+  "usage": {
+    "calls": 45,
+    "input_tokens": 156501,
+    "output_tokens": 23126,
+    "cost_usd": 1.3607,
+    "price_usd_per_mtok": [
+      5.0,
+      25.0
+    ]
+  },
+  "before": {
+    "n": 45,
+    "r_relevance_strategic_potential": 0.889,
+    "per_axis": {
+      "relevance": {
+        "min": 0,
+        "max": 4,
+        "mean": 1.533,
+        "dist": {
+          "0": 11,
+          "1": 12,
+          "2": 10,
+          "3": 11,
+          "4": 1
+        }
+      },
+      "novelty": {
+        "min": 0,
+        "max": 4,
+        "mean": 2.422,
+        "dist": {
+          "0": 1,
+          "1": 6,
+          "2": 14,
+          "3": 21,
+          "4": 3
+        }
+      },
+      "actionability": {
+        "min": 0,
+        "max": 3,
+        "mean": 1.022,
+        "dist": {
+          "0": 16,
+          "1": 17,
+          "2": 7,
+          "3": 5
+        }
+      },
+      "strategic_potential": {
+        "min": 0,
+        "max": 4,
+        "mean": 1.956,
+        "dist": {
+          "0": 5,
+          "1": 10,
+          "2": 15,
+          "3": 12,
+          "4": 3
+        }
+      },
+      "hype": {
+        "min": 1,
+        "max": 5,
+        "mean": 1.933,
+        "dist": {
+          "1": 25,
+          "2": 5,
+          "3": 9,
+          "4": 5,
+          "5": 1
+        }
+      }
+    },
+    "priority_classes": {
+      "archive": 33,
+      "immediate_priority": 1,
+      "operational_update": 11
+    },
+    "horizon_signal_n": 0,
+    "quadrant_rel_le2_and_sp_ge4": 0,
+    "relevance_ge4_n": 1,
+    "actionability_ge4_n": 0
+  },
+  "after": {
+    "n": 45,
+    "r_relevance_strategic_potential": 0.749,
+    "per_axis": {
+      "relevance": {
+        "min": 0,
+        "max": 3,
+        "mean": 1.422,
+        "dist": {
+          "0": 6,
+          "1": 19,
+          "2": 15,
+          "3": 5
+        }
+      },
+      "novelty": {
+        "min": 0,
+        "max": 3,
+        "mean": 1.956,
+        "dist": {
+          "0": 1,
+          "1": 15,
+          "2": 14,
+          "3": 15
+        }
+      },
+      "actionability": {
+        "min": 0,
+        "max": 3,
+        "mean": 0.911,
+        "dist": {
+          "0": 14,
+          "1": 22,
+          "2": 8,
+          "3": 1
+        }
+      },
+      "strategic_potential": {
+        "min": 0,
+        "max": 4,
+        "mean": 1.733,
+        "dist": {
+          "0": 7,
+          "1": 10,
+          "2": 17,
+          "3": 10,
+          "4": 1
+        }
+      },
+      "hype": {
+        "min": 0,
+        "max": 5,
+        "mean": 1.689,
+        "dist": {
+          "0": 1,
+          "1": 26,
+          "2": 9,
+          "3": 5,
+          "4": 3,
+          "5": 1
+        }
+      }
+    },
+    "priority_classes": {
+      "archive": 40,
+      "operational_update": 5
+    },
+    "horizon_signal_n": 0,
+    "quadrant_rel_le2_and_sp_ge4": 0,
+    "relevance_ge4_n": 0,
+    "actionability_ge4_n": 0
+  },
+  "items": [
+    {
+      "event_id": 5,
+      "title": "AI coding agents taught robots how to install GPUs and cut zip ties",
+      "url": "https://arstechnica.com/ai/2026/06/ai-coding-agents-can-autonomously-direct-robot-training/",
+      "old": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 4,
+      "title": "\"Dangerous\" AI models are coming no matter what",
+      "url": "https://arstechnica.com/ai/2026/06/dangerous-ai-models-are-coming-no-matter-what/",
+      "old": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 2,
+        "hype": 4
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 4
+      },
+      "errors": []
+    },
+    {
+      "event_id": 1,
+      "title": "Anthropic \"pauses\" token-based billing for its Claude Agent SDK",
+      "url": "https://arstechnica.com/ai/2026/06/anthropic-pauses-token-based-billing-for-its-claude-agent-sdk/",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 17,
+      "title": "Health board apologizes for phishing staff with with bogus vacation day",
+      "url": "https://www.theregister.com/security/2026/06/22/canadian-health-board-sorry-after-tasteless-phishing-test/5259320",
+      "old": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 75,
+      "title": "A scorecard for the AI age",
+      "url": "https://openai.com/index/a-scorecard-for-the-ai-age",
+      "old": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 4
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 3
+      },
+      "errors": []
+    },
+    {
+      "event_id": 36,
+      "title": "The US is advancing AI safety through state and federal action",
+      "url": "https://openai.com/index/advancing-ai-safety-through-state-and-federal-action",
+      "old": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 2,
+        "hype": 4
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 2,
+        "hype": 3
+      },
+      "errors": []
+    },
+    {
+      "event_id": 49,
+      "title": "Our approach to bioresilience",
+      "url": "https://deepmind.google/blog/our-approach-to-bioresilience/",
+      "old": {
+        "relevance": 0,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 4
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 4
+      },
+      "errors": []
+    },
+    {
+      "event_id": 138,
+      "title": "$100 million for open source: A milestone built by the community",
+      "url": "https://github.blog/open-source/maintainers/100-million-for-open-source-a-milestone-built-by-the-community/",
+      "old": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 4
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 4
+      },
+      "errors": []
+    },
+    {
+      "event_id": 152,
+      "title": "LLMs and Agentic AI Systems for Smart Grids: A Tutorial on Architectures and Applications",
+      "url": "https://arxiv.org/abs/2607.18147v1",
+      "old": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 151,
+      "title": "Do Language Models Dream of Binding Molecules? Benchmarking LLMs under Spatial Constraints",
+      "url": "https://arxiv.org/abs/2607.18144v1",
+      "old": {
+        "relevance": 0,
+        "novelty": 3,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 134,
+      "title": "WorldCupArena: Fine-Grained Evaluation of Language Models and Deep-Research Agents on Football Forecasting",
+      "url": "https://arxiv.org/abs/2607.18084v1",
+      "old": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 131,
+      "title": "Sparse Evidence Can Suffice: Agentic Evidence Seeking for Multimodal Video Misinformation Detection",
+      "url": "https://arxiv.org/abs/2607.18080v1",
+      "old": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 168,
+      "title": "Unveiling Invariant and Transferable Latent Factors Across Heterogeneous Environments via ATLAS",
+      "url": "https://arxiv.org/abs/2607.18209v1",
+      "old": {
+        "relevance": 0,
+        "novelty": 3,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 166,
+      "title": "PPL-Factory: Task-Aware and Budget-Aware Data Selection from Language Modeling to Reasoning",
+      "url": "https://arxiv.org/abs/2607.18199v1",
+      "old": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 163,
+      "title": "EVOLVE: Efficient Learned Volume Compression with Variable-Rate Encoding on a Cross-Domain Database",
+      "url": "https://arxiv.org/abs/2607.18187v1",
+      "old": {
+        "relevance": 0,
+        "novelty": 3,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 161,
+      "title": "FlashRT: Agent Harness for Guiding Agents to Deploy Real-Time Multimodal Applications",
+      "url": "https://arxiv.org/abs/2607.18171v1",
+      "old": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 93,
+      "title": "Google-backed satellites for wildfire detection launch as smoke chokes US, Canada",
+      "url": "https://arstechnica.com/space/2026/07/google-backed-satellites-for-wildfire-detection-launch-as-smoke-chokes-us-canada/",
+      "old": {
+        "relevance": 0,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 3
+      },
+      "errors": []
+    },
+    {
+      "event_id": 213,
+      "title": "FinSAgent: Corpus-Aligned Multi-Agent RAG Framework for Evidence-Grounded SEC Filing Question Answering",
+      "url": "https://arxiv.org/abs/2607.18102v1",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 3,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 30,
+      "title": "Quoting Armin Ronacher",
+      "url": "https://simonwillison.net/2026/Jul/14/armin-ronacher/#atom-everything",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 34,
+      "title": "Quoting GitHub Changelog",
+      "url": "https://simonwillison.net/2026/Jul/14/github-changeling/#atom-everything",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 3,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 38,
+      "title": "How I tricked Claude into leaking your deepest, darkest secrets",
+      "url": "https://simonwillison.net/2026/Jul/15/claude-web-fetch-exfiltration/#atom-everything",
+      "old": {
+        "relevance": 3,
+        "novelty": 4,
+        "actionability": 3,
+        "strategic_potential": 4,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 40,
+      "title": "Meet GPT-Red: an LLM super-hacker OpenAI built to make its models safer",
+      "url": "https://www.technologyreview.com/2026/07/15/1140514/meet-gpt-red-an-llm-super-hacker-openai-built-to-make-its-models-safer/",
+      "old": {
+        "relevance": 2,
+        "novelty": 4,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 46,
+      "title": "plugin-legacy@8.2.1",
+      "url": "https://github.com/vitejs/vite/releases/tag/plugin-legacy%408.2.1",
+      "old": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 0,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 54,
+      "title": "Inkling: Our open-weights model",
+      "url": "https://simonwillison.net/2026/Jul/16/inkling/#atom-everything",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 4,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 64,
+      "title": "Kimi K3, and what we can still learn from the pelican benchmark",
+      "url": "https://simonwillison.net/2026/Jul/16/kimi-k3/#atom-everything",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 3,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 70,
+      "title": "How Gartner can help turn your AI vision into business reality",
+      "url": "https://www.theregister.com/ai-and-ml/2026/07/17/how-gartner-can-help-turn-your-ai-vision-into-business-reality/5270873",
+      "old": {
+        "relevance": 0,
+        "novelty": 0,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 5
+      },
+      "new": {
+        "relevance": 0,
+        "novelty": 0,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 5
+      },
+      "errors": []
+    },
+    {
+      "event_id": 81,
+      "title": "LLM clich\u00e9 highlighter",
+      "url": "https://simonwillison.net/2026/Jul/17/llm-cliche-highlighter/#atom-everything",
+      "old": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 1,
+        "hype": 0
+      },
+      "errors": []
+    },
+    {
+      "event_id": 88,
+      "title": "AI spam filters are getting suckered by old-school text salting",
+      "url": "https://www.theregister.com/security/2026/07/17/ai-spam-filters-are-getting-suckered-by-old-school-text-salting/5274434",
+      "old": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 2
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 94,
+      "title": "nascheme/quixote",
+      "url": "https://simonwillison.net/2026/Jul/18/quixote/#atom-everything",
+      "old": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 103,
+      "title": "Connecting AI agents to outside services explodes the risk radius",
+      "url": "https://www.theregister.com/ai-and-ml/2026/07/19/connecting-ai-agents-to-outside-services-explodes-the-risk-radius/5274640",
+      "old": {
+        "relevance": 3,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 3,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 3
+      },
+      "errors": []
+    },
+    {
+      "event_id": 113,
+      "title": "Major glitch in Matrix as UK government projects watchdog rates shared services cluster red",
+      "url": "https://www.theregister.com/public-sector/2026/07/20/major-glitch-in-matrix-as-uk-government-projects-watchdog-rates-shared-services-cluster-red/5274368",
+      "old": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 2
+      },
+      "new": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 115,
+      "title": "Microsoft rushes out Windows fix for Dell's hot and bothered PCs",
+      "url": "https://www.theregister.com/os-platforms/2026/07/20/microsoft-rushes-out-windows-fix-for-dells-hot-and-bothered-pcs/5274810",
+      "old": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 150,
+      "title": "How we measured AI writing across arXiv, and where the measurement breaks",
+      "url": "https://unslop.run/blog/measuring-ai-writing-on-arxiv",
+      "old": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 179,
+      "title": "Nativ: Run frontier open models locally on your Mac",
+      "url": "https://blaizzy.github.io/nativ/",
+      "old": {
+        "relevance": 3,
+        "novelty": 2,
+        "actionability": 3,
+        "strategic_potential": 3,
+        "hype": 2
+      },
+      "new": {
+        "relevance": 3,
+        "novelty": 2,
+        "actionability": 3,
+        "strategic_potential": 4,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 180,
+      "title": "Frontier LLMs couldn't help Hugging Face fight off evil agents",
+      "url": "https://www.theregister.com/cyber-crime/2026/07/20/frontier-llms-couldnt-help-hugging-face-fight-off-evil-agents/5275168",
+      "old": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 181,
+      "title": "Human mathematicians are being outcounterexampled",
+      "url": "https://xenaproject.wordpress.com/2026/07/20/human-mathematicians-are-being-outcounterexampled/",
+      "old": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 0,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 183,
+      "title": "Reverse-engineering is cheap now",
+      "url": "https://simonwillison.net/2026/Jul/20/cheap-reverse-engineering/#atom-everything",
+      "old": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 1,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 192,
+      "title": "Flock Credibility Lost as It Repeatedly Lies to City Councils, Police, & Public",
+      "url": "https://www.aclu.org/news/privacy-technology/tracking-alpr-cameras/flock-safety-credibility-lost-as-it-repeatedly-lies-to-city-councils-police-departments-and-public-across-the-country",
+      "old": {
+        "relevance": 0,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 2
+      },
+      "new": {
+        "relevance": 0,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 200,
+      "title": "Mobius Learning: Cyclic Depth Folding in Transformers",
+      "url": "https://arxiv.org/abs/2607.17843v1",
+      "old": {
+        "relevance": 1,
+        "novelty": 4,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 208,
+      "title": "L1 Augmented Attention as an Improved Vector Similarity Metric",
+      "url": "https://arxiv.org/abs/2607.18027v1",
+      "old": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 3,
+        "actionability": 1,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 246,
+      "title": "Viking 1 landed on Mars 50 years ago",
+      "url": "https://www.theregister.com/science/2026/07/21/viking-1-landed-on-mars-50-years-ago/5275041",
+      "old": {
+        "relevance": 0,
+        "novelty": 2,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 0,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 0,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 219,
+      "title": "New repo: Codesteward/codesteward",
+      "url": "https://github.com/Codesteward/codesteward",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 3
+      },
+      "errors": []
+    },
+    {
+      "event_id": 220,
+      "title": "New repo: F2-AI-Inc/docray",
+      "url": "https://github.com/F2-AI-Inc/docray",
+      "old": {
+        "relevance": 3,
+        "novelty": 3,
+        "actionability": 3,
+        "strategic_potential": 3,
+        "hype": 1
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 2,
+        "hype": 1
+      },
+      "errors": []
+    },
+    {
+      "event_id": 228,
+      "title": "New repo: memloom/memloom",
+      "url": "https://github.com/memloom/memloom",
+      "old": {
+        "relevance": 4,
+        "novelty": 3,
+        "actionability": 2,
+        "strategic_potential": 4,
+        "hype": 2
+      },
+      "new": {
+        "relevance": 2,
+        "novelty": 2,
+        "actionability": 2,
+        "strategic_potential": 3,
+        "hype": 2
+      },
+      "errors": []
+    },
+    {
+      "event_id": 240,
+      "title": "New repo: Realynx/PolySIEM",
+      "url": "https://github.com/Realynx/PolySIEM",
+      "old": {
+        "relevance": 1,
+        "novelty": 2,
+        "actionability": 1,
+        "strategic_potential": 1,
+        "hype": 3
+      },
+      "new": {
+        "relevance": 1,
+        "novelty": 1,
+        "actionability": 0,
+        "strategic_potential": 1,
+        "hype": 2
+      },
+      "errors": []
+    }
+  ]
+}

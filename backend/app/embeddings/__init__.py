@@ -4,7 +4,9 @@ Two implementations:
 
 - **HashingEmbedder** — a deterministic, dependency-free hashing vectoriser. Near-duplicate texts
   (sharing most tokens) get high cosine similarity; distinct texts get low. It needs no model
-  download, so it is the embedder for tests/CI and a safe fallback.
+  download, so it is the embedder for tests/CI. It is **not an automatic fallback** — nothing
+  selects it but an explicit `EMBEDDER=hashing`, because its width (256) differs from the shipped
+  model's (384) and substituting one for the other silently would corrupt a live collection.
 - **SentenceTransformerEmbedder** — the real local model (e.g. `BAAI/bge-small-en-v1.5`), imported
   lazily so this package loads even when `sentence-transformers` (and torch) are not installed.
 
@@ -72,8 +74,15 @@ class HashingEmbedder:
 def get_embedder() -> Embedder:
     """Return the configured default embedder.
 
-    `EMBEDDER=hashing` (or a missing `sentence-transformers`) yields the deterministic embedder;
-    otherwise the real local model is loaded lazily.
+    `EMBEDDER=hashing` yields the deterministic embedder; any other value loads the real local
+    model lazily.
+
+    **There is no fall-back.** If `EMBEDDER` is not `hashing` and `sentence-transformers` is not
+    installed, this RAISES `RuntimeError` (from `SentenceTransformerEmbedder.__init__`) rather
+    than quietly returning `HashingEmbedder`. That is deliberate, not an oversight: the hashing
+    embedder is 256-dimensional and the shipped model is 384-dimensional, so a silent fall-back
+    would write vectors of the wrong width into an existing collection and corrupt the derived
+    index. Failing loudly is the safe behaviour; choose the hashing embedder explicitly.
     """
     if settings.embedder == "hashing":
         return HashingEmbedder()

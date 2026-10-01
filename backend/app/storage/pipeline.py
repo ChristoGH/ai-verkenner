@@ -19,10 +19,11 @@ from app.embeddings import Embedder
 from app.enrichment import Enricher, enrich_new_events
 from app.graph import GraphStore, project_new_events
 from app.ingestion import run_ingestion
+from app.ingestion.health import attribute_new_counts
 from app.ingestion.orchestrator import IngestionRun
 from app.schemas.source import Source
 from app.storage.dedup import assign_events
-from app.storage.repository import persist_new_items, upsert_sources
+from app.storage.repository import persist_new_items, upsert_source_health, upsert_sources
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,12 @@ def ingest_and_store(
     # SQLite FIRST — the system of record.
     source_ids = upsert_sources(session, sources)
     new_rows = persist_new_items(session, run.items, source_ids)
+
+    # Record the per-source fetch outcome (task 011 defect 2). Done here rather than in the
+    # orchestrator because `new_count` is only knowable after persistence. Reporting only — a
+    # health write must never affect what was stored, so it comes after the records are committed.
+    attribute_new_counts(run.results, (row.source_name for row in new_rows))
+    upsert_source_health(session, run.results)
 
     # Then the derived index + Event grouping (degrades if Qdrant is down).
     assign_events(session, new_rows, qdrant_client=qdrant_client, embedder=embedder, tau=tau)

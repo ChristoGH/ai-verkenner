@@ -88,6 +88,14 @@ rule in `backend/app/scoring/priority.py`. The frontend reads the ranked **Enric
   implementations (`neo4j_store` real Cypher, `memory` in-memory for tests), `projection`
   (`project_event` / `project_new_events` degrade-don't-crash / `graph_reindex` rebuild-from-SQLite),
   and `util` (label/edge whitelists, entity-type → label, UTC normalisation). Idempotent MERGEs.
+  **Entity normalisation (task 014):** `aliases.py` resolves curated surface forms onto one
+  canonical `Entity.id` at projection time, from the human-editable `sources/entity_aliases.yaml` —
+  explicit map only, no fuzzy matching or learned resolution, and an unlisted form stays its own
+  entity. SQLite is never rewritten, so deleting the YAML and re-running `graph-reindex` restores
+  the un-normalised graph exactly (ADR 0001). `scoring/graph_signals` resolves the event's SQLite
+  entity ids through the same map, so both sides of the identity agree. Normalisation makes the
+  merged concept node *larger*, which is why task 013's driver stoplist had to land first (D-026)
+  and why a test pins that the canonical node stays ineligible to label a weak signal.
 - **`backend/app/scoring/`** — `priority.py` (the canonical priority rule, real and tested),
   scoring scale constants, `ranking.py` (hype-aware salience + the M5 `rank_with_graph` blend), and
   `graph_signals.py` (convergence/centrality/recency, hub-dampened in M5.5 — IDF + distinct-source
@@ -114,10 +122,14 @@ a deliberate decision (it resolves an earlier ambiguity):
   obvious, and keeps them reusable by future components (e.g. a separate job runner) without a
   backend dependency.
 - **How the backend resolves them.** Paths are **configurable**, never hard-coded. `core/config`
-  reads `PROMPTS_DIR` (default `prompts`) and `SOURCES_FILE` (default `sources/sources.yaml`)
-  from the environment and resolves them against the repository root (the parent of `backend/`).
-  This means the backend has no embedded assumption about the directory layout — change the env
-  var and the content can live anywhere, including a mounted volume in a future container setup.
+  reads `PROMPTS_DIR` (default `prompts`), `SOURCES_FILE` (default `sources/sources.yaml`),
+  `ENTITY_ALIASES_FILE` (default `sources/entity_aliases.yaml`, task 014) and `USER_CONTEXT_PATH`
+  (default `docs/USER_CONTEXT.md`, task 017) from the environment and resolves them against the
+  repository root (the parent of `backend/`) through **one** helper, `_resolve`. This means the
+  backend has no embedded assumption about the directory layout — change the env var and the
+  content can live anywhere, including a mounted volume in a future container setup. There is
+  deliberately **one** resolution convention: a second one is how a document and the runtime drift
+  apart without anyone noticing, which is exactly what D-069 found.
 
 ## Phase 1 architecture (committed — graph / vector / visual)
 
@@ -177,6 +189,25 @@ enrichment, the M3 local embedder reused. **Fail-safe per item:** a missing/fail
 degrades to a deterministic rule-based fallback (`method="fallback"`), so a run never stalls.
 **Idempotent:** one `EnrichedItem` per Event (UNIQUE) means re-runs don't re-enrich or duplicate
 entities/relationships. Entity resolution is Phase-1 **exact + normalised string match** only.
+
+**`user_context` — what `relevance` is scored *against* (task 017).** `relevance` asks "is this
+about *this* user's work", so the answer is bounded by the description of that work supplied on
+every call. `core/config` resolves it in an explicit precedence: an explicit `USER_CONTEXT` env
+value (a per-run experiment override) → the file at `USER_CONTEXT_PATH`, default
+`docs/USER_CONTEXT.md` → a built-in 309-character literal. **No fall-back is silent:** a configured
+file that is unreadable or empty logs a WARNING at resolution time (which reaches stderr even
+before `basicConfig` runs), and `log_user_context_source()` names the source in force once at
+startup from `app.cli.main` and the API lifespan. This is not defensive decoration — until task 017
+the document that calls itself *"the ground truth AI Verkenner uses to score `relevance`"* was
+referenced in no Python file, the literal was silently in force, and three billable calibration
+runs ($4.77) tuned prompt wording against it (D-062, D-069; addendum §7).
+
+`settings.user_context` is read by **three** surfaces, not one: the enrichment classify call
+(`enrichment/enricher.py` → `prompts.render_item_inputs`), the digest **composition** call
+(`digests/generator.py` → `render.render_llm_inputs`), and the digest **retrieval** step
+(`digests/retrieve.py:build_theme_text`, which embeds it as the Qdrant theme query). Wiring it at
+settings level therefore also changes which items a digest retrieves and how it is written, not
+only how items are scored — a consequence recorded rather than absorbed (D-074).
 
 **M5 graph write & graph-aware ranking (current).** After enrichment, the run path projects the new,
 enriched Events into Neo4j (`project_new_events`). The graph schema is PHASE_1_PLAN §3: `Item`,
@@ -244,7 +275,34 @@ the body on the user's themes) → **Neo4j expand** (`graph_signals` convergence
 (`sections.py`, routed by the canonical priority class + source facts; reuses `rank_with_graph`, no
 re-derivation) → **one composition LLM call** (`prompts/digest.md`) or the deterministic fallback
 render (`render.py`). The weak-signals / research-radar sections draw from the hub-dampened
-convergence quadrant; the noise count is the honest archived/high-hype total. It degrades to
+convergence quadrant; the noise count is the honest archived/high-hype total. **Cluster coherence
+(task 010) + driver eligibility (task 013, current):** the weak-signal section is a group of items
+sharing **one driving entity** — `sections.coherent_cluster()` groups on `GraphSignal.driver_uid`
+(the normalised entity identity, never the display name) with a floor of `WEAK_CLUSTER_MIN_ITEMS`
+(default 2), and records the winner as `DigestData.weak_driver`. The previous per-item
+`convergence > 0` filter was a **per-item** property and collected items converging on unrelated
+entities; a convergence may now be claimed only when `weak_driver` is non-empty, and the post
+generator reads that one value rather than re-deriving coherence. **Selection is by quietness, not
+size** (D-026): among groups clearing the floor, the winner is the driver with the lowest ambient
+mention count (`GraphSignal.driver_mentions`, threaded from the same convergence read — no extra
+query), because a weak signal is *corroborated but not yet loud*; "largest group" structurally
+selected the corpus's loudest entity (D-024). Generic concept nodes ("AI", "LLM", "Large language
+models", …) are categorically ineligible to *label* a cluster via `WEAK_DRIVER_STOPLIST` — selection
+only; nothing is removed from the graph or from scoring. **Mention weight (task 016, current):** a
+shared `driver_uid` proves items name the same entity but not that they are *about* it, and the
+convergence read weights every mention equally — so a headline story and a one-line name-check
+corroborated a cluster equally. `scoring/mention_weight.py` scores each **entity–item link** from the
+item's own title and published body (1.0 named in the title · 0.8 named repeatedly · 0.6 named in the
+lead · 0.2 named once in passing · 0.0 never named), and `coherent_cluster` admits a member only at
+`>= CLUSTER_MEMBER_MIN_WEIGHT` (default 0.5). **Membership only** — an excluded item keeps its
+scores, its graph edges, its corpus row and its place in every other section — and it is **not a
+topicality gate**: an item strongly about the driver but off-topic for AI scores 1.0 and stays (that
+is corpus scope, task 011). It is string matching over text the corpus already holds: no LLM call, no
+embeddings, no re-enrichment. The published **"N independent sources"** is computed from the
+weighted members' own publishers via `sections.cluster_sources()` — one source of truth, shared with
+the post generator — rather than from the driving entity's graph-wide evidence, which includes
+publishers that never covered the selected development and which weighting cannot affect.
+Convergence maths, `GRAPH_MIN_SOURCES` and `priority.py` are untouched by this. It degrades to
 SQLite-only when Qdrant/Neo4j are down and persists as `Digest` (`GET /digests`, `GET /digests/{id}`,
 a Digests page). Generated via `python -m app.cli digest`.
 
@@ -259,6 +317,16 @@ Each would be recorded as an ADR before adoption.
 - **Preserve every source URL.** The URL is a first-class field on RawItem and survives into
   EnrichedItem, the dashboard, and the digest.
 - **Fail safely per source.** Ingestion isolates each source so one failure cannot abort a run.
+  **Isolation is not enough on its own:** a source that never yields is equally silent, so the
+  registry keeps claiming coverage the corpus does not have. `models.SourceHealth` records each
+  run's per-source outcome (fetched / kept / new / skipped / error, plus the consecutive
+  zero-yield streak); `python -m app.cli sources --health` lists every enabled source, and a
+  source yielding nothing for `SOURCE_ZERO_YIELD_WARN` consecutive runs is reported loudly in the
+  run summary. Reporting only — no retries, no backoff, no circuit breaker, no auto-disable
+  (task 011 / D-017, D-039). `app/ingestion/health.py` separates the four reasons a source shows
+  zero — `error` · `no-items` (a URL that does not serve a feed) · `stale-window` (healthy, but
+  quieter than `SOURCE_MAX_AGE_DAYS`) · `no-token` (a `github_*` source with no `GITHUB_TOKEN`,
+  skipped by ADR 0002 design) — because only the first two are faults (D-040).
 - **Fact vs. interpretation.** Enrichment outputs keep the source fact separate from the model's
   interpretation; the data model and prompts reflect this split.
 - **Scoring polarity / hype inversion.** Encoded in `scoring/` and honoured by ranking: hype is a

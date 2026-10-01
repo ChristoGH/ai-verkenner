@@ -32,11 +32,21 @@ import httpx
 
 from app.core.config import settings
 from app.schemas.raw_item import RawItem
-from app.schemas.source import Source
+from app.schemas.source import Source, SourceType
 
 logger = logging.getLogger(__name__)
 
 _API = "https://api.github.com"
+
+# The four ADR-0002 source types that require GITHUB_TOKEN. Named here so the token rule has ONE
+# owner: fetch-health reporting (task 011) asks this module whether a zero yield means "needs a
+# token" rather than re-deriving the rule from the source type inline.
+GITHUB_INTELLIGENCE_TYPES: frozenset[SourceType] = frozenset({
+    SourceType.github_new_repos,
+    SourceType.github_star_velocity,
+    SourceType.github_advisories,
+    SourceType.github_changes,
+})
 
 
 # ---- shared HTTP ----
@@ -46,6 +56,16 @@ def _has_token() -> bool:
     if settings.github_token:
         return True
     return False
+
+
+def needs_github_token(source: Source) -> bool:
+    """True when this source is token-gated and GITHUB_TOKEN is absent — skipped, not broken.
+
+    Distinguishing the two is the whole point: a github_* source yielding nothing without a token
+    is behaving exactly as designed (degrade, never crash), and reporting it as a broken feed
+    would send the human to fix a URL that is fine.
+    """
+    return source.source_type in GITHUB_INTELLIGENCE_TYPES and not _has_token()
 
 
 def _headers() -> dict[str, str]:

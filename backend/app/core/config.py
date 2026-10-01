@@ -1,17 +1,20 @@
 """Application configuration.
 
 Resolves environment settings, including the configurable root-level content paths
-(``PROMPTS_DIR`` and ``SOURCES_FILE``). These live at the repository root, not under
-``backend/`` — see docs/TECHNICAL_DESIGN.md. Paths are resolved against the repo root (the
-parent of ``backend/``) unless given as absolute paths.
+(``PROMPTS_DIR``, ``SOURCES_FILE``, ``ENTITY_ALIASES_FILE`` and ``USER_CONTEXT_PATH``). These live
+at the repository root, not under ``backend/`` — see docs/TECHNICAL_DESIGN.md. Paths are resolved
+against the repo root (the parent of ``backend/``) unless given as absolute paths.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # backend/app/core/config.py -> parents[3] == repository root.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -26,6 +29,115 @@ def _resolve(path_value: str) -> Path:
     return p if p.is_absolute() else (REPO_ROOT / p)
 
 
+# Driver names that may never LABEL a Weak Signal of the Week (task 013 / D-026, defect B).
+# Edit this list — or override it wholesale with a comma-separated WEAK_DRIVER_STOPLIST — without
+# touching any logic. Matched case-insensitively against the entity's *normalised* identity
+# (`schemas.enrichment.normalise_entity_name`: lower / trim / collapse whitespace).
+#
+# Why each class of term is here:
+#   * the field itself — every item in this corpus is about AI, so "AI is quietly converging" says
+#     nothing; it is the category, not an entity within it.
+#   * model-class nouns — "LLM" / "model" name the artefact class, and D-024 found the 8-item
+#     incoherent M7.5 cluster passed precisely by sharing a generic "LLM" hub.
+#   * sub-discipline names — "machine learning" / "deep learning" are fields of study; a convergence
+#     on one is a statement about the whole industry, not an early warning.
+#
+# Stoplisting affects SELECTION ONLY. These entities stay in the graph, keep their scores, and can
+# still appear anywhere else in the digest — they simply cannot be the face of a weak signal.
+_DEFAULT_WEAK_DRIVER_STOPLIST: tuple[str, ...] = (
+    # the field itself
+    "ai", "artificial intelligence", "generative ai", "genai",
+    # model-class nouns
+    "llm", "llms", "large language model", "large language models", "model", "models",
+    # sub-discipline names
+    "machine learning", "ml", "deep learning", "neural network",
+)
+
+
+def _csv_list(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    """A comma-separated env override, or the default. Blank entries are dropped."""
+    if value is None:
+        return default
+    return tuple(part.strip() for part in value.split(",") if part.strip())
+
+
+# The literal fallback for `user_context`. Named, rather than inlined, so the log line and the tests
+# can refer to the same object and so it is unmistakable in a diff.
+#
+# This 309-character paragraph names NO vendor and NO open decision. It was the context actually
+# sent to the LLM on every enrichment call for the whole life of the project, because
+# `docs/USER_CONTEXT.md` — which opens by calling itself "the ground truth AI Verkenner uses to
+# score relevance" — was referenced in no Python file (D-069). Three billable calibration runs
+# ($4.77) tuned prompt wording against it; task 015's anchors then correctly returned "no" on all
+# 45 sampled items, because "Anthropic" is not a named part of this stack description (D-062).
+_DEFAULT_USER_CONTEXT = (
+    "A solo engineer building AI Verkenner: a personal AI intelligence and early-warning "
+    "system. Stack: Python, FastAPI, SQLite, Qdrant, Neo4j, React/TypeScript, local "
+    "sentence-transformers embeddings, and a cloud LLM. Interests: LLM tooling, RAG, "
+    "vector/graph databases, agentic systems, and AI developer tooling."
+)
+
+
+def _load_user_context(path: Path) -> tuple[str, str]:
+    """The user context in force, and a human-readable name for where it came from (task 017).
+
+    Precedence, in order: an explicit ``USER_CONTEXT`` env value wins — so a single run can override
+    the file for an experiment without editing it — then the file at ``USER_CONTEXT_PATH``, then the
+    literal default above.
+
+    **Every fall-back is announced.** Per `AGENT_ADDENDUM.md` §7 a silent fallback is a defect, not
+    a convenience: a config default that silently substitutes for a document is invisible in the
+    prompt file, invisible in the output, and fatal to any experiment run against it. A configured
+    file that cannot be read is therefore a WARNING, which reaches stderr through logging's
+    last-resort handler even when this module is imported before logging is configured (it is —
+    `app.cli` imports settings at module level and calls `basicConfig` inside `main`).
+    """
+    explicit = os.getenv("USER_CONTEXT")
+    if explicit is not None and explicit.strip():
+        return explicit, "USER_CONTEXT env value (explicit override)"
+
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        logger.warning(
+            "USER_CONTEXT_PATH %s could not be read (%s) — falling back to the built-in "
+            "%d-character default, which names no vendor and no open decision. "
+            "relevance will be scored against a stub (D-069).",
+            path, exc, len(_DEFAULT_USER_CONTEXT),
+        )
+        return _DEFAULT_USER_CONTEXT, f"built-in default ({path} could not be read)"
+
+    if not text:
+        logger.warning(
+            "USER_CONTEXT_PATH %s is empty — falling back to the built-in %d-character default, "
+            "which names no vendor and no open decision (D-069).",
+            path, len(_DEFAULT_USER_CONTEXT),
+        )
+        return _DEFAULT_USER_CONTEXT, f"built-in default ({path} is empty)"
+
+    return text, f"{path} ({len(text)} chars)"
+
+
+_user_context_announced = False
+
+
+def log_user_context_source(log: logging.Logger | None = None) -> str:
+    """Announce, ONCE per process, which `user_context` source is in force. Returns the line.
+
+    Called from the entry points (`app.cli.main`, the API lifespan) rather than from `Settings`,
+    because settings are constructed at import time — before `logging.basicConfig` runs — so an
+    INFO line emitted there would be dropped and the announcement would be theatre. Failures to
+    read a *configured* file are warned about at resolution time regardless (see
+    `_load_user_context`); this line reports the steady state.
+    """
+    global _user_context_announced
+    message = f"user_context source in force: {settings.user_context_source}"
+    if not _user_context_announced:
+        (log or logger).info(message)
+        _user_context_announced = True
+    return message
+
+
 class Settings:
     """Plain settings holder (kept simple; no pydantic dependency in Task 001)."""
 
@@ -38,6 +150,20 @@ class Settings:
         # Root-level content, configurable. Defaults match the repo layout.
         self.prompts_dir: Path = _resolve(os.getenv("PROMPTS_DIR", "prompts"))
         self.sources_file: Path = _resolve(os.getenv("SOURCES_FILE", "sources/sources.yaml"))
+        # Curated entity-alias map (task 014): surface forms that mean one thing, merged onto one
+        # canonical uid at GRAPH PROJECTION time only. Explicit and human-editable — no fuzzy
+        # matching, no embeddings. A missing file means "normalise nothing", which is the
+        # pre-task-014 behaviour, so the graph still projects.
+        self.entity_aliases_file: Path = _resolve(
+            os.getenv("ENTITY_ALIASES_FILE", "sources/entity_aliases.yaml")
+        )
+        # The user's real stack/projects/interests (task 014's sibling convention, task 017 / D-069).
+        # Resolved through the SAME `_resolve` base-path mechanism as everything above — there is
+        # exactly one path convention in this file and this setting does not introduce a second.
+        # Consumed below to build `user_context`; see `_load_user_context` for the precedence.
+        self.user_context_path: Path = _resolve(
+            os.getenv("USER_CONTEXT_PATH", "docs/USER_CONTEXT.md")
+        )
 
         # Ingestion HTTP behaviour. Polite user agent + a real timeout so one slow source
         # can't hang a run (the per-source fail-safe invariant).
@@ -54,6 +180,12 @@ class Settings:
         # affordable. AGE skips items older than the window; ITEMS is a hard per-source backstop.
         self.source_max_age_days: int = int(os.getenv("SOURCE_MAX_AGE_DAYS", "30"))
         self.source_max_items: int = int(os.getenv("SOURCE_MAX_ITEMS", "40"))
+        # Fetch-health surfacing (task 011 defect 2 / D-017). A source that yields nothing across
+        # this many CONSECUTIVE runs is reported loudly at the end of every run. Reporting only —
+        # nothing retries, backs off, or auto-disables; the human decides. A registry that claims
+        # coverage the corpus does not have is a silent correctness failure in an early-warning
+        # system, so the fail-safe isolation invariant must not also make a dead source invisible.
+        self.source_zero_yield_warn: int = int(os.getenv("SOURCE_ZERO_YIELD_WARN", "3"))
 
         # Curated GitHub-intelligence fetchers (ADR 0002 — watched orgs/users/topics, NOT a crawler).
         # A token is required; without it, github_* sources are skipped (degrade, never crash).
@@ -91,13 +223,10 @@ class Settings:
         # Cap entities extracted per item to contain sprawl (ADR/plan M4 risk mitigation).
         self.max_entities_per_item: int = int(os.getenv("MAX_ENTITIES_PER_ITEM", "12"))
         # The user's stack/projects/interests — fed to the LLM so relevance is about *this* user.
-        self.user_context: str = os.getenv(
-            "USER_CONTEXT",
-            "A solo engineer building AI Verkenner: a personal AI intelligence and early-warning "
-            "system. Stack: Python, FastAPI, SQLite, Qdrant, Neo4j, React/TypeScript, local "
-            "sentence-transformers embeddings, and a cloud LLM. Interests: LLM tooling, RAG, "
-            "vector/graph databases, agentic systems, and AI developer tooling.",
-        )
+        # `user_context_source` names where it came from, and is announced once at startup by
+        # `log_user_context_source()`. It is NOT decoration: the whole of task 017 exists because
+        # this value silently fell back to a stub and nothing said so (D-069).
+        self.user_context, self.user_context_source = _load_user_context(self.user_context_path)
 
         # Graph-aware ranking (M5). A transparent, documented adjustment layered ON TOP OF the
         # canonical priority class — it reorders within/across classes, never redefines the class,
@@ -129,6 +258,62 @@ class Settings:
         self.digest_section_limit: int = int(os.getenv("DIGEST_SECTION_LIMIT", "8"))
         # How many semantic neighbours the GraphRAG retrieve step pulls for the theme query.
         self.digest_retrieve_limit: int = int(os.getenv("DIGEST_RETRIEVE_LIMIT", "40"))
+        # --- Weak-signal SELECTION floor (task 013 defect C / D-047). ------------------------------
+        # Both settings below gate which driver may be CHOSEN as the Weak Signal of the Week. They
+        # are deliberately separate from `graph_min_sources`, which is the global convergence floor
+        # inside `graph_signals` — raising that would change scoring product-wide (D-026 rules it
+        # out). Nothing here is re-scored; a driver below the floor keeps its convergence, it just
+        # cannot be the face of the piece.
+        #
+        # WHY 3, for both: the selection objective is *quietest corroborated driver* (D-026), and a
+        # minimiser lands on whatever the floor allows. At a floor of 2 the winner is 2 mentions /
+        # 2 sources / 2 items by construction — which is not distinguishable from coincidence, and
+        # on the real corpus produced `Firefox`, whose second item had no AI content at all (D-036).
+        # Two sources mentioning something twice is a coincidence; three is a pattern. A weak signal
+        # needs enough corroboration to be REAL *and* low ambient volume — the floor supplies the
+        # first half, the quietness ordering the second.
+        #
+        # Smallest group of items sharing ONE driving entity that may be called a convergence
+        # (task 010 / D-016 B, floor raised 2 → 3 by D-047). Below this, the weak-signal piece
+        # degrades honestly rather than claiming a cluster. This is a coherence floor, NOT a scoring
+        # threshold — LOWERING it to manufacture a signal is the failure D-014 forbids.
+        self.weak_cluster_min_items: int = int(os.getenv("WEAK_CLUSTER_MIN_ITEMS", "3"))
+        # Distinct sources a driver must span to be *selectable* as the weak signal. Selection only:
+        # `GRAPH_MIN_SOURCES` (above, default 2) still decides what counts as convergence at all.
+        self.weak_driver_min_sources: int = int(os.getenv("WEAK_DRIVER_MIN_SOURCES", "3"))
+        # Generic concept nodes that may never be the DRIVER of a weak signal (task 013 / D-026).
+        # See `_DEFAULT_WEAK_DRIVER_STOPLIST` above for the list and why each class of term is on it.
+        self.weak_driver_stoplist: tuple[str, ...] = _csv_list(
+            os.getenv("WEAK_DRIVER_STOPLIST"), _DEFAULT_WEAK_DRIVER_STOPLIST
+        )
+        # --- Mention weight: cluster MEMBERSHIP floor (task 016 / D-057). --------------------------
+        # An item joins a driver's cluster only if the driver is substantively present in the item's
+        # own text, scored by `app/scoring/mention_weight.py`. Below this floor the item is excluded
+        # from CLUSTER MEMBERSHIP ONLY — it stays in the corpus, in the graph, in the noise report
+        # and in every other digest section. Nothing is re-scored and nothing is deleted.
+        #
+        # WHY 0.5: the bands are 1.0 title / 0.8 repeated / 0.6 lead / 0.2 named-once-in-passing /
+        # 0.0 never named. 0.5 is the gap between "named in the lead" and "named once, body-only",
+        # so it separates *presence* from *reference* without landing on any band. It is not a
+        # quality bar and not a topicality gate — an off-topic item whose subject IS the driver
+        # scores 1.0 and stays (that is D-036, a corpus-scope question, task 011's).
+        self.cluster_member_min_weight: float = float(
+            os.getenv("CLUSTER_MEMBER_MIN_WEIGHT", "0.5")
+        )
+
+        # Editorial cap on the Noise Report (task 010 Defect 3): each surface NAMES at most this many
+        # demoted items, loudest-first. The true total is always stated in the prose ("187 items were
+        # demoted this week; here are the 12 loudest") — the cap is legibility, never a claim about
+        # corpus size. It does not touch `is_noise` or the hype threshold; nothing is re-scored.
+        self.noise_report_limit: int = int(os.getenv("NOISE_REPORT_LIMIT", "12"))
+
+        # Post generator (M7.5). `posts_output_dir` is the git-ignored working area for generated
+        # drafts. `vault_dir` (from VAULT_DIR) is the user's Obsidian vault — when set, drafts are
+        # ALSO written as new notes under <vault>/00-Inbox/ (create-only; never modify/delete). It is
+        # None unless configured; the `posts --vault-dir` flag overrides it per-run.
+        self.posts_output_dir: Path = _resolve(os.getenv("POSTS_OUTPUT_DIR", "outputs/posts"))
+        _vault = os.getenv("VAULT_DIR")
+        self.vault_dir: Path | None = _resolve(_vault) if _vault else None
 
 
 settings = Settings()

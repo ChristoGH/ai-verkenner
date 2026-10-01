@@ -13,13 +13,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import digests, feedback, graph, health, horizon, items, sources
-from app.core.config import settings
+from app.core.config import log_user_context_source, settings
 from app.db import neo4j, qdrant
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Nothing to open eagerly (clients connect lazily). On shutdown, release them cleanly.
+    # Name the user_context source in force, once (task 017 / D-069) — the digest composition and
+    # retrieval paths served from this process read it.
+    log_user_context_source()
     yield
     qdrant.close()
     neo4j.close()

@@ -42,20 +42,25 @@ this N weeks before it trended"** — which is the strongest possible Medium lon
 Every published claim keeps its source link and separates **source fact** from **interpretation**
 (the core invariants apply to outputs, not just internal data).
 
-## 3. Three distribution surfaces of one intelligence
+## 3. Distribution surfaces of one intelligence
 
-The weekly intelligence is generated once, then projected to three surfaces by a **post
-generator** (milestone M7.5):
+**Explicit publishing goal:** the flagship weekly output ships to **X and LinkedIn** (the two
+primary public channels), with **Medium** for the long-form and **MCP** as the agent surface. The
+intelligence is generated once, then projected to each surface by a **post generator**
+(milestone M7.5):
 
-- **LinkedIn** — the hook: 1 strong opening line + 3 bullets + the Cosmograph image + a CTA.
-  Short, scroll-stopping.
+- **X (Twitter)** — the punch: a single strong hook post (or a short thread) — the convergence in
+  one line + the evidence link + the Cosmograph image. Built for reach.
+- **LinkedIn** — the professional hook: 1 strong opening line + 3 bullets + the Cosmograph image +
+  a CTA. Short, scroll-stopping.
 - **Medium** — the narrative: the convergence story, the timeline, embedded graph, evidence
   links, and a short methodology footnote (how the signal was detected). Long-form.
 - **MCP server** — the queryable surface: the same intelligence exposed read-only so the user's
   *agents* can ask the radar instead of re-searching the web (milestone M8.5; see §5).
 
-Generation is **draft-first, human-in-the-loop**: the system produces drafts; the user approves
-before anything is posted. No auto-posting in Phase 1.
+Generation is **draft-first, human-in-the-loop**: the system produces drafts; **the user reviews
+and approves before anything is posted. No auto-posting** — publishing to X and LinkedIn is a
+deliberate human action (paste, or an assisted-but-confirmed post), not an automated one.
 
 ## 4. GitHub intelligence (a source type, not a crawler)
 

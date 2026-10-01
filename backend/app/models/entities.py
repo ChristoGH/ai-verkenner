@@ -179,6 +179,49 @@ class RepoStarSnapshot(SQLModel, table=True):
     captured_at: datetime = Field(default_factory=_utcnow, index=True)
 
 
+class SourceHealth(SQLModel, table=True):
+    """The latest fetch outcome for one source, plus its zero-yield streak (task 011 defect 2).
+
+    One row per source `name` (upserted, like `Source`). This exists because the fail-safe
+    isolation invariant — one bad source never aborts a run — has a blind side: a source that
+    *never* yields stays silent, and the registry then claims coverage the corpus does not have.
+    D-017 found eight enabled sources contributing 0 rows to a 266-item corpus, none of them
+    visible anywhere.
+
+    The counts mirror `ingestion.orchestrator.SourceRunResult` and are kept separate on purpose:
+    `last_fetched_count` high with `last_item_count` 0 is a *healthy* source publishing less often
+    than SOURCE_MAX_AGE_DAYS, which is a completely different situation from `last_fetched_count`
+    0 (dead URL / non-feed page), and different again from `needs_token`.
+
+    Reporting only. Nothing here retries, backs off, or disables a source — the human decides.
+    """
+
+    __tablename__ = "source_health"
+
+    id: int | None = Field(default=None, primary_key=True)
+    source_name: str = Field(index=True, unique=True)
+    source_type: str
+
+    last_run_at: datetime = Field(default_factory=_utcnow)
+    # The last run whose fetch did not raise. A 200 that parses to zero entries still counts as
+    # "did not error" — which is precisely why `last_yield_at` is tracked separately.
+    last_ok_at: datetime | None = None
+    # The last run that actually delivered >= 1 item to storage. This is the honest answer to
+    # "when did we last hear anything from this source?".
+    last_yield_at: datetime | None = None
+
+    last_fetched_count: int = 0   # returned by the fetcher, before the recency cap
+    last_item_count: int = 0      # survived the recency cap
+    last_new_count: int = 0       # newly persisted to SQLite
+    last_skipped_count: int = 0   # capped away or already stored
+    last_error: str | None = None
+
+    consecutive_zero_yield: int = 0
+    needs_token: bool = False     # token-gated and GITHUB_TOKEN absent: skipped, not broken
+
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
 class Feedback(SQLModel, table=True):
     """One feedback action on an Event (M7).
 

@@ -8,7 +8,7 @@ generates with no graph store (SQLite-only).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,7 +23,8 @@ from app.main import app
 from app.models import EnrichedItem, RawItem
 from tests import graph_helpers as gh
 
-TS = datetime(2026, 6, 18, tzinfo=timezone.utc)
+# Relative to now — an absolute date ages out of the convergence/digest windows (see graph_helpers).
+TS = datetime.now(timezone.utc) - timedelta(days=3)
 
 
 class FakeProvider:
@@ -55,16 +56,19 @@ def _typed_item(session, source, event, *, title, url, source_type):
 
 
 def _seed(session):
-    """A realistic mix: 1 must-know advisory, 1 should-read release, 2 converging weak signals
+    """A realistic mix: 1 must-know advisory, 1 should-read release, 3 converging weak signals
     (one from arXiv → research radar), 1 archive + 1 high-hype = 2 noise items.
     """
-    s1, s2, s3 = (gh.add_source(session, f"src{i}") for i in (1, 2, 3))
+    s1, s2, s3, s4 = (gh.add_source(session, f"src{i}") for i in (1, 2, 3, 4))
     rag = gh.add_entity(session, "RAG", "concept")
 
-    # Two converging horizon developments on RAG, from two distinct sources (genuine weak signal).
+    # Three converging horizon developments on RAG, from three distinct sources — a genuine weak
+    # signal at the SELECTION floor (task 013 defect C / D-047: `WEAK_CLUSTER_MIN_ITEMS` and
+    # `WEAK_DRIVER_MIN_SOURCES` are both 3). At two items / two sources this seed would be
+    # indistinguishable from coincidence and would correctly fail to converge.
     # Dev 0 comes from an arXiv-typed item so it also lands in the research radar.
     weak = []
-    for i, (src, stype) in enumerate(((s1, "arxiv"), (s2, "rss"))):
+    for i, (src, stype) in enumerate(((s1, "arxiv"), (s2, "rss"), (s4, "rss"))):
         ev = gh.add_event(session, f"RAG development {i}")
         item = _typed_item(session, src, ev, title=f"New RAG approach {i}",
                            url=f"https://{src.name}/rag{i}", source_type=stype)
@@ -141,14 +145,14 @@ def test_noise_count_is_archived_plus_high_hype(session):
     data = _data(session, store)
     # Exactly the archive item + the hype-5 item.
     assert data.noise_count == 2
-    assert data.total_events == 6 and data.item_count == 4
+    assert data.total_events == 7 and data.item_count == 5
 
 
 def test_weak_signals_only_from_horizon_quadrant(session):
     store, seeded = _store_with_seed(session)
     data = _data(session, store)
     assert {it.priority_class for it in data.weak_signals} <= {"horizon_signal", "archive"}
-    # The two converging RAG developments are the weak signals.
+    # The three converging RAG developments are the weak signals.
     assert {it.event_id for it in data.weak_signals} == {e.id for e in seeded["weak"]}
     assert all(it.graph_score > 0 for it in data.weak_signals)
 

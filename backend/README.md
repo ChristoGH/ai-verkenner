@@ -60,6 +60,12 @@ run. Ingestion (`app.ingestion.run_ingestion`) is a library call, not yet an end
 ### Store + enrich + graph CLI
 
 ```bash
+# ⚠️ RUN EVERY COMMAND BELOW FROM THE REPOSITORY ROOT, never from backend/, with the venv
+#    active (`source backend/.venv/bin/activate`). DATABASE_URL is a RELATIVE path, so the
+#    working directory chooses the database: running these from backend/ silently creates and
+#    fills backend/data/, and enrichment is then billed against a stray corpus. That is not
+#    hypothetical — it happened, and it cost ~15 enrichments (D-006).
+
 # Ingest → SQLite + Qdrant → dedup → enrich (M4) → project to Neo4j (M5):
 python -m app.cli run
 python -m app.cli run --no-enrich   # skip enrichment (M3 behaviour)
@@ -67,7 +73,18 @@ python -m app.cli run --no-graph    # skip the Neo4j projection (M4 behaviour)
 # Rebuild a derived index purely from SQLite (proves the derived-index invariant):
 python -m app.cli reindex           # Qdrant 'items' collection
 python -m app.cli graph-reindex     # Neo4j knowledge graph
+# Compose the weekly GraphRAG digest over enriched Events (M7):
+python -m app.cli digest            # (--days N to widen; 0 = whole corpus)
+# Project a digest into X/LinkedIn/Medium DRAFTS (M7.5 — never posts):
+python -m app.cli posts             # --digest <id|latest>  --vault-dir <path>  --days N
 ```
+
+`posts` is **draft-only**: it re-derives the structured digest from SQLite (LLM-free), writes the
+**Weak Signal of the Week** + **Noise Report** for each surface under `POSTS_OUTPUT_DIR`
+(git-ignored), and — when `--vault-dir`/`VAULT_DIR` is set — creates matching notes in
+`<vault>/00-Inbox/` (**create-only**; never modifies or deletes existing notes). It never calls a
+social API. A static convergence-cluster PNG is rendered when the optional `[posts]` extra
+(matplotlib+networkx) is installed, else a placeholder tells you to screenshot the Cosmograph view.
 
 `run` honours `DATABASE_URL`, `QDRANT_URL`, `NEO4J_*`, the embedder selector, and the LLM provider.
 Dedup is two-stage (content hash → Qdrant ANN ≥ `DEDUP_TAU`) and idempotent; enrichment runs once
@@ -106,5 +123,6 @@ app/
 ├── models/        SQLModel tables — Source/RawItem/Event/EnrichedItem/Entity/Relationship
 ├── storage/       hashing · repository (persist) · dedup (events + reindex) · pipeline (run path)
 ├── scoring/       priority.py (canonical) · scales · ranking (hype-aware) · graph_signals
-└── digests/       digest generation (placeholder — Task 008 / M7)
+├── digests/       GraphRAG digest — sections · render · retrieve · generator (M7)
+└── posts/         post generator (M7.5) — model · generator (X/LinkedIn/Medium) · image · writer
 ```
